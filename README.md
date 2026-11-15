@@ -40,6 +40,16 @@ cd /mnt/user/appdata/spotisync-src
 docker build -t guillian77/spotisync:latest .
 ```
 
+> **Mise à jour d'une installation existante** : `docker build` remplace l'image taguée, mais un
+> conteneur déjà créé continue de tourner sur l'ancienne image — `docker restart` ne fait que
+> relancer l'ancien code. Il faut **recréer** le conteneur :
+> ```bash
+> git pull && docker build -t guillian77/spotisync:latest .
+> docker stop Spotisync && docker rm Spotisync    # puis Add Container → Template Spotisync → Apply
+> ```
+> Contrôle rapide de la version réellement exécutée :
+> `docker exec Spotisync grep -c "_static_dir" /app/app/main.py` (0 = ancienne image).
+
 Puis installez le template, au choix :
 
 **a. Par l'interface (recommandé)**
