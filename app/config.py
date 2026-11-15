@@ -8,7 +8,7 @@ def _env(key: str, default: str = "") -> str:
 
 
 APP_NAME = "Spotisync"
-VERSION = "0.3.1"
+VERSION = "0.4.0"
 
 CONFIG_DIR = Path(_env("SPOTISYNC_CONFIG", "/config"))
 DEFAULT_MUSIC_DIR = _env("SPOTISYNC_MUSIC", "/music")
@@ -31,7 +31,7 @@ DEFAULTS = {
     "audio_format": "mp3",
     "audio_bitrate": "320k",
     "threads": "2",
-    "js_runtime": "node",
+    "js_runtime": "deno",
     "normalize_artists": "1",
     "overwrite_mode": "skip",
     "dupe_threshold": "92",

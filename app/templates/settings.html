@@ -100,8 +100,9 @@
                  class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
         </label>
         <label class="block">Runtime JS
-          <input name="js_runtime" value="{{ cfg.js_runtime }}" placeholder="node"
+          <input name="js_runtime" value="{{ cfg.js_runtime }}" placeholder="deno"
                  class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
+          <span class="text-xs text-slate-500">deno (recommandé) ou node</span>
         </label>
         <label class="block">Seuil doublons (0-100)
           <input name="dupe_threshold" type="number" min="70" max="100" value="{{ cfg.dupe_threshold }}"

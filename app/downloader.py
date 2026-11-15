@@ -135,8 +135,19 @@ manager = DownloadManager()
 
 # --- une piste -------------------------------------------------------------
 
+def js_runtime() -> str:
+    """Runtime JS réellement disponible : Deno est requis par yt-dlp pour les challenges
+    de YouTube, Node ne suffit pas (et le paquet Debian est trop ancien)."""
+    import shutil
+    preferred = (db.setting("js_runtime", "deno") or "").strip()
+    for candidate in ([preferred] if preferred else []) + ["deno", "node"]:
+        if candidate and shutil.which(candidate):
+            return candidate
+    return ""
+
+
 def _yt_dlp_args() -> list[str]:
-    runtime = db.setting("js_runtime", "node")
+    runtime = js_runtime()
     if not runtime:
         return []
     return ["--yt-dlp-args", f"--js-runtimes {runtime}"]
@@ -360,3 +371,29 @@ def quarantine(paths: list[str]) -> int:
         except OSError:
             continue
     return moved
+
+# --- scan de la bibliothèque (arrière-plan) --------------------------------
+
+scan_state = {"active": False, "started": "", "found": 0, "indexed": 0, "error": ""}
+_scan_lock = threading.Lock()
+
+
+def scan_async() -> bool:
+    """Lance l'indexation sans bloquer la requête HTTP (l'UI peut suivre l'état)."""
+    with _scan_lock:
+        if scan_state["active"]:
+            return False
+        scan_state.update(active=True, found=0, indexed=0, error="",
+                          started=time.strftime("%H:%M:%S"))
+
+    def _run() -> None:
+        try:
+            res = scan_library()
+            scan_state.update(found=res["found"], indexed=res["indexed"])
+        except Exception as exc:  # noqa: BLE001
+            scan_state["error"] = str(exc)[:300]
+        finally:
+            scan_state["active"] = False
+
+    threading.Thread(target=_run, daemon=True).start()
+    return True

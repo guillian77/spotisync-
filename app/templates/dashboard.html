@@ -51,24 +51,9 @@
   </div>
 </div>
 
-<div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 mb-8">
-  <div class="flex flex-wrap items-end gap-3">
-    <form method="post" action="/download/start" class="flex items-end gap-2">
-      <label class="text-xs text-slate-400">Limite (vide = tout)
-        <input name="limit" placeholder="∞" class="mt-1 w-24 rounded-md bg-slate-800 border border-slate-700 px-2 py-1.5 text-sm">
-      </label>
-      <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">Lancer le téléchargement</button>
-    </form>
-    <form method="post" action="/download/stop" onsubmit="return confirm('Arrêter le lot en cours ?')">
-      <button class="rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-4 py-2">Arrêter</button>
-    </form>
-    <form method="post" action="/download/retry">
-      <button class="rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-4 py-2">Relancer les échecs</button>
-    </form>
-    <form method="post" action="/library/scan">
-      <button class="rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-4 py-2">Scanner la bibliothèque</button>
-    </form>
-  </div>
+<div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 mb-8"
+     id="controls" hx-get="/controls" hx-trigger="every 3s" hx-swap="innerHTML">
+  {% include "_controls.html" %}
   <p class="mt-4 text-xs text-slate-500">
     Dernière récupération des listes :
     <span class="text-slate-300">{{ sync_state.last or 'jamais' }}</span>
@@ -78,9 +63,6 @@
       · automatique désactivée
     {% endif %}
   </p>
-  <div id="progress" hx-get="/progress" hx-trigger="every 3s" hx-swap="innerHTML" class="mt-2">
-    {% include "_progress.html" %}
-  </div>
 </div>
 
 <div class="grid md:grid-cols-2 gap-4">

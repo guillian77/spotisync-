@@ -137,6 +137,10 @@ Arborescence : `app/{config,db,spotify,sync,downloader,metadata,main}.py`,
 - **`/music` non inscriptible** : le conteneur ne fait jamais de `chown` sur ce volume.
   Les réglages affichent « accessible en écriture » ou un avertissement rouge ; aligner
   `PUID`/`PGID` sur le propriétaire du partage (99:100 par défaut sur Unraid).
+- **`Some YouTube downloads require Deno` / `YT-DLP download error`** : yt-dlp a besoin d'un
+  runtime JS récent pour les challenges de YouTube ; le paquet Debian `nodejs` est trop ancien.
+  L'image installe **Deno** (runtime par défaut) et le code retombe sur `node` s'il est absent.
+  En cas de doute : `docker exec Spotisync deno --version`.
 - **`400 redirect_uri: Insecure`** : Spotify exige HTTPS, ou `http://127.0.0.1:PORT` pour
   une adresse de bouclage. `localhost` et les IP LAN sont refusés.
 - **`403 Active premium subscription required for the owner of the app`** : politique

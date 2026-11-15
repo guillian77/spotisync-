@@ -1,0 +1,93 @@
+{# Bloc de contrôle du téléchargement — rafraîchi par HTMX toutes les 3 s #}
+{% if manager.active %}
+<div class="flex flex-wrap items-center gap-3 text-sm">
+  <span class="inline-flex items-center gap-2 rounded-full bg-emerald-900/40 border border-emerald-700/60 px-3 py-1 text-emerald-300">
+    <span class="relative flex h-2 w-2">
+      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+      <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+    </span>
+    Téléchargement en cours
+  </span>
+  <span class="text-slate-400">{{ manager.done }} / {{ manager.total }} terminés{% if manager.failed %} · <span class="text-rose-300">{{ manager.failed }} échec(s)</span>{% endif %}</span>
+</div>
+{% set pct = (manager.done * 100 / manager.total) if manager.total else 0 %}
+<div class="mt-2 h-2 rounded bg-slate-800 overflow-hidden">
+  <div class="h-full bg-emerald-500 transition-all" style="width: {{ '%.1f'|format(pct) }}%"></div>
+</div>
+{% if manager.current %}
+<div class="mt-1 text-xs text-slate-500 truncate">{{ manager.current[-1] }}</div>
+{% endif %}
+{% elif scan.active %}
+<div class="flex flex-wrap items-center gap-3 text-sm">
+  <span class="inline-flex items-center gap-2 rounded-full bg-sky-900/40 border border-sky-700/60 px-3 py-1 text-sky-300">
+    <span class="relative flex h-2 w-2">
+      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+      <span class="relative inline-flex rounded-full h-2 w-2 bg-sky-400"></span>
+    </span>
+    Analyse du dossier musique en cours…
+  </span>
+  <span class="text-slate-400">{{ scan.found }} fichier(s) parcourus · démarrée à {{ scan.started }}</span>
+</div>
+{% else %}
+<div class="flex flex-wrap items-center gap-3 text-sm">
+  <span class="inline-flex items-center gap-2 rounded-full bg-slate-800/80 border border-slate-700 px-3 py-1 text-slate-400">
+    <span class="h-2 w-2 rounded-full bg-slate-500"></span>
+    Aucun téléchargement en cours
+  </span>
+  {% if pending_count %}<span class="text-slate-500">{{ pending_count }} titre(s) en attente</span>{% endif %}
+  {% if scan.found and not scan.error %}<span class="text-slate-500">dernier scan : {{ scan.found }} fichiers, {{ scan.indexed }} indexés</span>{% endif %}
+  {% if scan.error %}<span class="text-rose-400">scan en échec : {{ scan.error }}</span>{% endif %}
+</div>
+{% endif %}
+
+<div class="mt-4 flex flex-wrap items-end gap-2">
+  <form method="post" action="/download/start" class="flex items-end gap-2">
+    <label class="text-xs text-slate-400">Limite (vide = tout)
+      <input name="limit" id="limit-input" hx-preserve="true" placeholder="∞"
+             class="mt-1 w-24 rounded-md bg-slate-800 border border-slate-700 px-2 py-1.5 text-sm">
+    </label>
+    <button {{ 'disabled' if manager.active }}
+            class="inline-flex items-center gap-2 rounded-md bg-emerald-600 text-white text-sm px-4 py-2
+                   enabled:hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed">
+      <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path d="M6.3 2.84A1.5 1.5 0 0 0 4 4.11v11.78a1.5 1.5 0 0 0 2.3 1.27l9.34-5.89a1.5 1.5 0 0 0 0-2.54L6.3 2.84Z"/>
+      </svg>
+      Lancer le téléchargement
+    </button>
+  </form>
+
+  <form method="post" action="/download/stop" onsubmit="return confirm('Arrêter le lot en cours ?')">
+    <button {{ 'disabled' if not manager.active }}
+            class="inline-flex items-center gap-2 rounded-md bg-slate-800 text-slate-200 text-sm px-4 py-2
+                   enabled:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed">
+      <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <rect x="5" y="5" width="10" height="10" rx="1.5"/>
+      </svg>
+      Arrêter
+    </button>
+  </form>
+
+  <form method="post" action="/download/retry">
+    <button {{ 'disabled' if not err_count or manager.active }}
+            class="inline-flex items-center gap-2 rounded-md bg-slate-800 text-slate-200 text-sm px-4 py-2
+                   enabled:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed">
+      <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M15.5 6.5A6 6 0 1 0 16 10"/><path d="M16 3v4h-4"/>
+      </svg>
+      Relancer les échecs{% if err_count %} ({{ err_count }}){% endif %}
+    </button>
+  </form>
+
+  <form method="post" action="/library/scan">
+    <button {{ 'disabled' if scan.active or manager.active }}
+            class="inline-flex items-center gap-2 rounded-md bg-slate-800 text-slate-200 text-sm px-4 py-2
+                   enabled:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed">
+      <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="8.5" cy="8.5" r="4.5"/><path d="m12 12 4.5 4.5"/>
+      </svg>
+      {{ 'Analyse en cours…' if scan.active else 'Scanner la bibliothèque' }}
+    </button>
+  </form>
+</div>

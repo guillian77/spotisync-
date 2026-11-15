@@ -99,13 +99,26 @@ def sync_state() -> dict:
     }
 
 
+def controls_state() -> dict:
+    return {
+        "manager": manager.status(),
+        "scan": dict(downloader.scan_state),
+        "errors": db.q1("SELECT COUNT(*) c FROM tracks WHERE status='error'")["c"],
+        "pending": db.q1("SELECT COUNT(*) c FROM tracks WHERE status IN ('pending','queued')")["c"],
+    }
+
+
 def render(request: Request, name: str, **ctx) -> HTMLResponse:
     ctx.setdefault("stats", stats())
     ctx.setdefault("account", account_state())
     ctx.setdefault("cfg", db.all_settings())
     ctx.setdefault("app_name", config.APP_NAME)
     ctx.setdefault("version", config.VERSION)
-    ctx.setdefault("manager", manager.status())
+    state = controls_state()
+    ctx.setdefault("manager", state["manager"])
+    ctx.setdefault("scan", state["scan"])
+    ctx.setdefault("err_count", state["errors"])
+    ctx.setdefault("pending_count", state["pending"])
     ctx.setdefault("sync_state", sync_state())
     return templates.TemplateResponse(request, name, ctx)
 
@@ -202,11 +215,10 @@ def library(request: Request, q: str = "", status: str = "", page: int = 1):
 
 @app.post("/library/scan")
 def library_scan():
-    try:
-        res = downloader.scan_library()
-    except RuntimeError as exc:
-        return RedirectResponse(f"/library?q=&status=&scan_err={exc}", status_code=303)
-    return RedirectResponse(f"/library?scanned={res['indexed']}", status_code=303)
+    started = downloader.scan_async()
+    if not started:
+        return RedirectResponse("/?msg=Analyse%20d%C3%A9j%C3%A0%20en%20cours", status_code=303)
+    return RedirectResponse("/?msg=Analyse%20du%20dossier%20musique%20lanc%C3%A9e", status_code=303)
 
 
 @app.get("/duplicates", response_class=HTMLResponse)
@@ -226,6 +238,9 @@ async def duplicates_quarantine(request: Request):
 
 @app.post("/download/start")
 def download_start(limit: str = Form("")):
+    if manager.active():
+        return RedirectResponse("/?msg=Un+t%C3%A9l%C3%A9chargement+est+d%C3%A9j%C3%A0+en+cours",
+                                status_code=303)
     try:
         manager.start(limit=int(limit) if limit.strip() else None)
     except RuntimeError as exc:
@@ -235,12 +250,17 @@ def download_start(limit: str = Form("")):
 
 @app.post("/download/stop")
 def download_stop():
+    if not manager.active():
+        return RedirectResponse("/?msg=Aucun+t%C3%A9l%C3%A9chargement+%C3%A0+arr%C3%AAter",
+                                status_code=303)
     manager.stop()
     return RedirectResponse("/", status_code=303)
 
 
 @app.post("/download/retry")
 def download_retry():
+    if not db.q1("SELECT 1 FROM tracks WHERE status='error' LIMIT 1"):
+        return RedirectResponse("/?msg=Aucun+%C3%A9chec+%C3%A0+relancer", status_code=303)
     db.qx("UPDATE tracks SET status='pending', error=NULL WHERE status='error'")
     try:
         manager.start()
@@ -249,9 +269,14 @@ def download_retry():
     return RedirectResponse("/", status_code=303)
 
 
+@app.get("/controls", response_class=HTMLResponse)
+def controls(request: Request):
+    return render(request, "_controls.html")
+
+
 @app.get("/progress", response_class=HTMLResponse)
 def progress(request: Request):
-    return render(request, "_progress.html")
+    return render(request, "_controls.html")
 
 
 @app.get("/api/status")
