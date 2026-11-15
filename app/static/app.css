@@ -1,0 +1,35 @@
+/* Styles locaux complémentaires à Tailwind (chargé par CDN). */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Focus visible homogène au clavier (accessibilité) */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: 2px;
+}
+
+/* Les titres longs ne doivent jamais élargir une carte */
+.truncate {
+  max-width: 100%;
+}
+
+/* Transition douce de la barre de progression HTMX */
+#progress .transition-all {
+  transition: width 0.4s ease;
+}

@@ -264,4 +264,6 @@ def auth_disconnect():
     return RedirectResponse("/settings", status_code=303)
 
 
-app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
+_static_dir = BASE / "static"
+if _static_dir.is_dir():  # le dossier peut être absent (git ne suit pas les dossiers vides)
+    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
