@@ -1,0 +1,98 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Spotisync</Name>
+  <Repository>guillian77/spotisync:latest</Repository>
+  <Registry>https://github.com/guillian77/spotisync-</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/guillian77/spotisync-/issues</Support>
+  <Project>https://github.com/guillian77/spotisync-</Project>
+  <Overview>Transforme une bibliothèque Spotify (titres likés, playlists) en fichiers audio rangés et tagués, prêts pour Navidrome, Jellyfin ou Plex. L'audio est téléchargé via spotDL (YouTube Music), les métadonnées viennent de Spotify. Anti-doublons par ISRC et par similarité titre/artiste, quarantaine, bibliothèque consultable et synchronisation automatique.</Overview>
+  <Category>MediaApp:Music Tools:Utilities MediaServer:Music</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/guillian77/spotisync-/master/unraid/spotisync.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/guillian77/spotisync-/master/unraid/spotisync.svg</Icon>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Description>Spotisync — synchronisation Spotify vers fichiers audio (MP3/Opus), tags propres, dédoublonnage et auto-sync.</Description>
+  <Networking>
+    <Mode>bridge</Mode>
+    <Publish>
+      <Port>
+        <HostPort>8080</HostPort>
+        <ContainerPort>8080</ContainerPort>
+        <Protocol>tcp</Protocol>
+      </Port>
+    </Publish>
+  </Networking>
+  <Data>
+    <Volume>
+      <HostDir>/mnt/user/appdata/spotisync</HostDir>
+      <ContainerDir>/config</ContainerDir>
+      <Mode>rw</Mode>
+    </Volume>
+    <Volume>
+      <HostDir>/mnt/user/music</HostDir>
+      <ContainerDir>/music</ContainerDir>
+      <Mode>rw</Mode>
+    </Volume>
+  </Data>
+  <Environment>
+    <Variable>
+      <Value>99</Value>
+      <Name>PUID</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>100</Value>
+      <Name>PGID</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>Europe/Paris</Value>
+      <Name>TZ</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>SPOTIFY_CLIENT_ID</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>SPOTIFY_REDIRECT_URI</Name>
+      <Mode/>
+    </Variable>
+  </Environment>
+  <Labels/>
+  <Config Name="Port WebUI" Target="8080" Default="8080" Mode="tcp"
+          Description="Port de l'interface web (HTTP)."
+          Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="Dossier de configuration" Target="/config" Default="/mnt/user/appdata/spotisync"
+          Mode="rw" Description="Base SQLite, staging des téléchargements, journaux."
+          Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/spotisync</Config>
+  <Config Name="Dossier musique" Target="/music" Default="/mnt/user/music"
+          Mode="rw" Description="Destination des fichiers audio. Doit appartenir à PUID:PGID (le conteneur ne le chown jamais)."
+          Type="Path" Display="always" Required="true" Mask="false">/mnt/user/music</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode=""
+          Description="UID propriétaire des fichiers (99 = nobody sur Unraid)."
+          Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode=""
+          Description="GID propriétaire des fichiers (100 = users sur Unraid)."
+          Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="TZ" Target="TZ" Default="Europe/Paris" Mode=""
+          Description="Fuseau horaire du conteneur."
+          Type="Variable" Display="advanced" Required="false" Mask="false">Europe/Paris</Config>
+  <Config Name="Client ID Spotify" Target="SPOTIFY_CLIENT_ID" Default="" Mode=""
+          Description="Optionnel : préremplit le Client ID (modifiable ensuite dans l'interface)."
+          Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Redirect URI Spotify" Target="SPOTIFY_REDIRECT_URI" Default="" Mode=""
+          Description="Optionnel : ex. http://192.168.1.10:8080/callback — doit être identique dans l'app developer Spotify."
+          Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+</Container>

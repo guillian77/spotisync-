@@ -27,25 +27,59 @@ explicitement au moment de la liaison.
 3. Scopes utilisés : `user-library-read playlist-read-private playlist-read-collaborative`
 4. Copier le **Client ID** dans les réglages de Spotisync, puis « Lier mon compte »
 
-## Déploiement (Unraid / Docker)
+## Installation
+
+### Unraid (template)
+
+L'image n'est pas encore publiée sur un registre : construisez-la d'abord sur le serveur
+(terminal Unraid, dans le dossier du dépôt) :
+
+```bash
+git clone https://github.com/guillian77/spotisync-.git /mnt/user/appdata/spotisync-src
+cd /mnt/user/appdata/spotisync-src
+docker build -t guillian77/spotisync:latest .
+```
+
+Puis installez le template, au choix :
+
+**a. Par l'interface (recommandé)**
+1. Copier `unraid/spotisync.xml` dans `/boot/config/plugins/dockerMan/templates-user/`
+   ```bash
+   cp /mnt/user/appdata/spotisync-src/unraid/spotisync.xml /boot/config/plugins/dockerMan/templates-user/
+   ```
+2. Unraid → **Docker** → *Add Container* → sélectionner **Spotisync** dans le menu *Template*.
+3. Vérifier les deux chemins (`/mnt/user/appdata/spotisync` → `/config`,
+   `/mnt/user/music` → `/music`), ajuster `PUID`/`PGID` si votre partage musique ne
+   appartient pas à `nobody:users`, puis **Apply**.
+
+**b. En ligne de commande**
+
+```bash
+docker run -d --name spotisync --restart unless-stopped \
+  -p 8080:8080 \
+  -e PUID=99 -e PGID=100 -e TZ=Europe/Paris \
+  -v /mnt/user/appdata/spotisync:/config \
+  -v /mnt/user/music:/music \
+  guillian77/spotisync:latest
+```
+
+Le schéma SQLite est créé au premier démarrage ; l'interface est sur
+`http://<ip-unraid>:8080`. Le conteneur ne fait **jamais** de `chown` sur `/music`.
+
+### Docker Compose (hors Unraid)
 
 ```bash
 docker compose up -d --build
 ```
 
-Chemins par défaut :
-- `/config` → `/mnt/user/appdata/spotisync` (base SQLite, staging, logs)
-- `/music` → `/mnt/user/music` (dossier d'export, modifiable dans l'UI)
-- port `8080`
+### Chemins, port et variables
 
-Variables utiles : `PUID`, `PGID`, `TZ`, `SPOTISYNC_PORT`, `SPOTIFY_CLIENT_ID`,
-`SPOTIFY_REDIRECT_URI`, `SPOTISYNC_MUSIC`.
-
-### Template Unraid
-
-Créer le conteneur manuellement avec : port `8080`, deux chemins (`/mnt/user/appdata/spotisync`
-→ `/config`, `/mnt/user/music` → `/music`), variables `PUID=99`, `PGID=100`, `TZ=Europe/Paris`.
-C'est tout — le schéma SQLite se crée au premier démarrage.
+- `/config` → `/mnt/user/appdata/spotisync` (SQLite, staging, journaux)
+- `/music` → `/mnt/user/music` (dossier d'export, modifiable ensuite dans l'UI)
+- port `8080` (interne et externe, `SPOTISYNC_PORT` pour changer côté conteneur)
+- variables : `PUID`, `PGID`, `TZ`, `SPOTISYNC_PORT`, `SPOTISYNC_MUSIC`,
+  `SPOTIFY_CLIENT_ID`, `SPOTIFY_REDIRECT_URI`
+- santé : `GET /api/status` (touche la base, atteste aussi que le schéma existe)
 
 ## Utilisation
 
@@ -64,7 +98,7 @@ SPOTISYNC_CONFIG=./data SPOTISYNC_MUSIC=./music .venv/bin/uvicorn app.main:app -
 ```
 
 Arborescence : `app/{config,db,spotify,sync,downloader,metadata,main}.py`,
-`app/templates/*.html` (Jinja2 + Tailwind/HTMX via CDN).
+`app/templates/*.html` (Jinja2 + Tailwind/HTMX via CDN), `unraid/` (template + icône).
 
 ## Limites connues
 
