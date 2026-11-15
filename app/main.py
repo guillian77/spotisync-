@@ -105,9 +105,11 @@ def dashboard(request: Request):
 
 
 @app.get("/playlists", response_class=HTMLResponse)
-def playlists_page(request: Request, err: str = ""):
+def playlists_page(request: Request):
     rows = db.q("SELECT * FROM playlists ORDER BY selected DESC, is_liked DESC, name")
-    return render(request, "playlists.html", playlists=rows, err=err)
+    return render(request, "playlists.html", playlists=rows,
+                  selected_count=sum(1 for r in rows if r["selected"]),
+                  total_tracks=db.q1("SELECT COUNT(*) c FROM tracks")["c"])
 
 
 @app.post("/playlists/refresh")
@@ -130,6 +132,16 @@ def playlists_toggle(pid: str):
     return RedirectResponse("/playlists", status_code=303)
 
 
+@app.post("/playlists/{pid}/delete")
+def playlists_delete(pid: str):
+    if not pid.startswith("import:"):
+        return RedirectResponse("/playlists?err=Seules+les+playlists+import%C3%A9es+peuvent+%C3%AAtre+retir%C3%A9es",
+                                status_code=303)
+    db.qx("DELETE FROM playlist_tracks WHERE playlist_id=?", (pid,))
+    db.qx("DELETE FROM playlists WHERE id=?", (pid,))
+    return RedirectResponse("/playlists?ok=Import+retir%C3%A9+de+la+liste", status_code=303)
+
+
 @app.post("/sync")
 def do_sync():
     try:
@@ -138,7 +150,10 @@ def do_sync():
         return RedirectResponse("/settings?err=Compte+Spotify+non+lié", status_code=303)
     except spotify.SpotifyError as exc:
         return RedirectResponse("/playlists?err=" + str(exc), status_code=303)
-    return RedirectResponse(f"/playlists?ok={summary['new']}", status_code=303)
+    msg = f"{summary['new']} nouveau(x) titre(s) ajouté(s) à la file"
+    if summary.get("skipped"):
+        msg += f" · {summary['skipped']} playlist(s) importée(s) ignorée(s)"
+    return RedirectResponse("/playlists?ok=" + quote_plus(msg), status_code=303)
 
 
 @app.get("/library", response_class=HTMLResponse)
@@ -246,11 +261,10 @@ async def settings_save(request: Request):
 
 # --- import de fichiers (voie de secours sans API) -------------------------
 
-@app.get("/import", response_class=HTMLResponse)
-def import_page(request: Request, err: str = "", ok: str = ""):
-    imports = db.q("SELECT * FROM playlists WHERE id LIKE 'import:%' "
-                   "ORDER BY id DESC LIMIT 10")
-    return render(request, "import.html", err=err, ok=ok, imports=imports)
+@app.get("/import")
+def import_page():
+    """Ancien onglet : l'import vit désormais sur la page Playlists."""
+    return RedirectResponse("/playlists", status_code=303)
 
 
 @app.post("/import")
@@ -261,10 +275,10 @@ async def import_upload(file: UploadFile = File(...), name: str = Form("")):
             raise ValueError("Fichier vide")
         res = importer.import_file(data, file.filename or "", name)
     except (ValueError, json.JSONDecodeError) as exc:
-        return RedirectResponse("/import?err=" + quote_plus(str(exc)), status_code=303)
+        return RedirectResponse("/playlists?err=" + quote_plus(str(exc)), status_code=303)
     msg = (f"{res['new']} nouveaux, {res['updated']} mis à jour — "
            f"{res['total']} titres dans « {res['playlist_name']} »")
-    return RedirectResponse("/import?ok=" + quote_plus(msg), status_code=303)
+    return RedirectResponse("/playlists?ok=" + quote_plus(msg), status_code=303)
 
 
 # --- OAuth -----------------------------------------------------------------

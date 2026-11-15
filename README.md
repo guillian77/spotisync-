@@ -5,6 +5,8 @@ playlists) en fichiers audio rangés et tagués, prêts pour Navidrome/Jellyfin/
 
 - Liaison **Spotify OAuth PKCE** (client secret inutile), sélection des playlists à suivre
 - **Import de fichiers** (CSV Exportify, JSON d'export Spotify) : l'app reste utilisable sans Premium
+- **Une seule page Playlists** pour gérer les playlists Spotify et les imports (badge de source,
+  sélection, retrait d'un import), l'ancienne route `/import` redirige simplement vers elle
 - Téléchargement via **spotDL** (audio YouTube Music, jamais le flux Spotify)
 - **Métadonnées** nettoyées : artistes multiples (`A/B` → `A; B`), piste, année, ISRC, pochette
 - **Anti-doublons** : ISRC puis titre/artiste proche + durée voisine, quarantaine plutôt que suppression
@@ -96,13 +98,14 @@ docker compose up -d --build
 
 1. **Réglages** : Client ID Spotify, redirect URI, dossier d'export, format/bitrate, parallélisme.
 2. **Lier mon compte** → retour sur `/callback` → playlists importées.
-3. **Playlists** : cocher celles à suivre → « Synchroniser la sélection ».
+3. **Playlists** : cocher celles à suivre → « Synchroniser la sélection ». Le bloc d'import
+   (CSV/JSON) est replié en haut de cette même page.
 4. **Tableau de bord** : « Lancer le téléchargement » (limite optionnelle pour tester).
 5. **Bibliothèque** → « Indexer le dossier musique » puis **Doublons** pour arbitrer.
 
 ### Sans Premium : import de fichiers
 
-L'onglet **Import** accepte un **CSV Exportify** (https://exportify.app, fonctionne en compte
+Le bloc **Importer une liste de titres** (page Playlists) accepte un **CSV Exportify** (https://exportify.app, fonctionne en compte
 gratuit) ou un **JSON d'export Spotify** (*Compte → Confidentialité → Télécharger vos données*,
 fichier `LikedSongs.json`). L'import crée une playlist « importée », déjà sélectionnée : le
 téléchargement, les tags et le dédoublonnage se comportent exactement comme pour une playlist

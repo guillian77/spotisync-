@@ -21,7 +21,7 @@
     <nav class="flex gap-1 text-sm">
       {% set nav = [('/', 'Tableau de bord'), ('/playlists', 'Playlists'),
                     ('/library', 'Bibliothèque'), ('/duplicates', 'Doublons'),
-                    ('/import', 'Import'), ('/settings', 'Réglages')] %}
+                    ('/settings', 'Réglages')] %}
       {% for href, label in nav %}
         {% set active = request.url.path == href %}
         <a href="{{ href }}" class="px-3 py-1.5 rounded-md {{ 'bg-slate-800 text-white' if active else 'text-slate-400 hover:text-white hover:bg-slate-800/60' }}">{{ label }}</a>

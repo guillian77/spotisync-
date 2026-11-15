@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Playlists · {{ app_name }}{% endblock %}
 {% block content %}
-<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+<div class="flex flex-wrap items-end justify-between gap-3 mb-5">
   <div>
     <h1 class="text-xl font-semibold text-white">Playlists</h1>
-    <p class="text-sm text-slate-400">Cochez celles à synchroniser, puis lancez la synchronisation.</p>
+    <p class="text-sm text-slate-400">
+      {{ playlists|length }} playlist(s) · {{ selected_count }} sélectionnée(s) ·
+      {{ total_tracks }} titres connus. Sélectionnez ce qui doit être synchronisé, puis téléchargé.
+    </p>
   </div>
   <div class="flex gap-2">
     <form method="post" action="/playlists/refresh">
@@ -23,33 +26,84 @@
 {% endif %}
 {% if request.query_params.get('ok') %}
 <div class="mb-4 rounded-lg border border-emerald-700 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200">
-  {{ request.query_params.get('ok') }} nouvelle(s) piste(s) ajoutée(s) à la file.
+  {{ request.query_params.get('ok') }}
 </div>
 {% endif %}
 
+<details class="mb-6 rounded-xl border border-slate-800 bg-slate-900/50" {{ 'open' if not playlists }}>
+  <summary class="cursor-pointer select-none px-4 py-3 text-sm text-white">
+    Importer une liste de titres (CSV Exportify ou JSON Spotify)
+    <span class="text-slate-500">— utile sans compte Premium</span>
+  </summary>
+  <form method="post" action="/import" enctype="multipart/form-data"
+        class="px-4 pb-4 pt-4 space-y-3 border-t border-slate-800">
+    <div class="grid sm:grid-cols-2 gap-3">
+      <label class="block text-sm">Fichier
+        <input type="file" name="file" accept=".csv,.json,.tsv,.txt" required
+               class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-700 file:px-3 file:py-1 file:text-slate-200">
+      </label>
+      <label class="block text-sm">Nom de la playlist créée (optionnel)
+        <input name="name" placeholder="Import du jour"
+               class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 text-sm">
+      </label>
+    </div>
+    <div class="flex items-center justify-between gap-3">
+      <p class="text-xs text-slate-500">
+        Exportify : <span class="text-slate-300">exportify.app</span> → Liked Songs → Export CSV ·
+        Export officiel : Compte → Confidentialité → Télécharger vos données → <code>LikedSongs.json</code>
+      </p>
+      <button class="shrink-0 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">Importer</button>
+    </div>
+  </form>
+</details>
+
 <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
   {% for p in playlists %}
+  {% set is_import = p.id.startswith('import:') %}
   <div class="rounded-xl border {{ 'border-emerald-700/60 bg-emerald-950/20' if p.selected else 'border-slate-800 bg-slate-900/50' }} p-3 flex gap-3">
     {% if p.image %}
       <img src="{{ p.image }}" alt="" class="w-16 h-16 rounded object-cover shrink-0">
     {% else %}
-      <div class="w-16 h-16 rounded bg-slate-800 shrink-0 flex items-center justify-center text-xl">{% if p.is_liked %}♥{% else %}♪{% endif %}</div>
+      <div class="w-16 h-16 rounded bg-slate-800 shrink-0 flex items-center justify-center text-xl">
+        {% if is_import %}⇩{% elif p.is_liked %}♥{% else %}♪{% endif %}
+      </div>
     {% endif %}
     <div class="min-w-0 flex-1">
-      <div class="font-medium text-white truncate">{{ p.name }}</div>
-      <div class="text-xs text-slate-500 truncate">{{ p.total }} titres{% if p.owner %} · {{ p.owner }}{% endif %}</div>
-      <div class="text-xs text-slate-600">Synchronisée : {{ (p.last_synced or '—')[0:16].replace('T', ' ') }}</div>
-      <form method="post" action="/playlists/{{ p.id }}/toggle" class="mt-2">
-        <button class="text-xs rounded px-2 py-1 {{ 'bg-emerald-600 text-white hover:bg-emerald-500' if p.selected else 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
-          {{ 'Sélectionnée' if p.selected else 'Sélectionner' }}
-        </button>
-      </form>
+      <div class="flex items-start gap-2">
+        <span class="font-medium text-white truncate flex-1">{{ p.name }}</span>
+        <span class="text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 shrink-0
+          {{ 'bg-sky-900/70 text-sky-300' if is_import else 'bg-slate-800 text-slate-400' }}">
+          {{ 'Import' if is_import else 'Spotify' }}
+        </span>
+      </div>
+      <div class="text-xs text-slate-500 truncate">{{ p.total }} titres{% if p.owner and not is_import %} · {{ p.owner }}{% endif %}</div>
+      <div class="text-xs text-slate-600">
+        {{ 'Importée' if is_import else 'Synchronisée' }} : {{ (p.last_synced or '—')[0:16].replace('T', ' ') }}
+      </div>
+      <div class="mt-2 flex items-center gap-2">
+        <form method="post" action="/playlists/{{ p.id }}/toggle">
+          <button class="text-xs rounded px-2 py-1 {{ 'bg-emerald-600 text-white hover:bg-emerald-500' if p.selected else 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
+            {{ 'Sélectionnée' if p.selected else 'Sélectionner' }}
+          </button>
+        </form>
+        {% if is_import %}
+        <form method="post" action="/playlists/{{ p.id }}/delete"
+              onsubmit="return confirm('Retirer cet import de la liste ? Les titres déjà en base sont conservés.')">
+          <button class="text-xs rounded px-2 py-1 bg-slate-800 text-rose-300 hover:bg-rose-900/60">Retirer</button>
+        </form>
+        {% endif %}
+      </div>
     </div>
   </div>
   {% else %}
   <div class="col-span-full rounded-xl border border-slate-800 bg-slate-900/50 p-6 text-sm text-slate-400">
-    Aucune playlist en base. Liez votre compte dans les réglages, puis cliquez sur « Rafraîchir depuis Spotify ».
+    Aucune playlist. Liez votre compte Spotify dans les réglages, ou importez un fichier CSV/JSON ci-dessus.
   </div>
   {% endfor %}
 </div>
+
+<p class="text-xs text-slate-500 mt-4">
+  Une playlist importée ne peut pas être resynchronisée depuis Spotify (pas d'identifiant côté API) :
+  réimportez le fichier mis à jour, les titres déjà connus ne seront pas dupliqués.
+</p>
 {% endblock %}
