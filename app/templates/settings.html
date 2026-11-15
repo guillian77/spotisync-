@@ -16,7 +16,11 @@
     <h2 class="text-sm font-medium text-white mb-3">Compte Spotify</h2>
     {% if account.connected %}
       <p class="text-sm text-slate-300">{{ account.name }} <span class="text-slate-500">({{ account.product }})</span></p>
-      {% if not account.premium %}
+      {% if not account.profile_ok %}
+      <p class="mt-2 text-xs text-amber-300/90">Jeton obtenu, mais <code>GET /me</code> a été refusé :
+        le propriétaire de l'app developer Spotify doit avoir un abonnement Premium. En attendant,
+        utilisez <a href="/import" class="underline">l'import CSV/JSON</a>.</p>
+      {% elif not account.premium %}
       <p class="mt-2 text-xs text-amber-300/90">Compte non Premium : l'API Spotify refusera les appels
         (politique Spotify pour les apps developer).</p>
       {% endif %}

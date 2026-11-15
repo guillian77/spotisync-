@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Import · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="max-w-3xl">
+  <h1 class="text-xl font-semibold text-white mb-1">Importer une liste de titres</h1>
+  <p class="text-sm text-slate-400 mb-6">
+    Voie de secours quand l'API Spotify est indisponible (compte non Premium) : on importe
+    les métadonnées d'un fichier, puis le téléchargement et le dédoublonnage sont identiques.
+  </p>
+
+  {% if err %}
+  <div class="mb-4 rounded-lg border border-rose-700 bg-rose-900/30 px-4 py-3 text-sm text-rose-200">{{ err }}</div>
+  {% endif %}
+  {% if ok %}
+  <div class="mb-4 rounded-lg border border-emerald-700 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200">{{ ok }}</div>
+  {% endif %}
+
+  <form method="post" action="/import" enctype="multipart/form-data"
+        class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 space-y-3">
+    <label class="block text-sm">Fichier (CSV Exportify ou JSON Spotify)
+      <input type="file" name="file" accept=".csv,.json,.tsv,.txt" required
+             class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-700 file:px-3 file:py-1 file:text-slate-200">
+    </label>
+    <label class="block text-sm">Nom de la playlist créée (optionnel)
+      <input name="name" placeholder="Import {{ 'maintenant' }}"
+             class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 text-sm">
+    </label>
+    <div class="flex items-center justify-between">
+      <p class="text-xs text-slate-500">
+        Exportify : <span class="text-slate-300">exportify.app</span> → Liked Songs → Export CSV.
+        Export officiel : Compte → Confidentialité → Télécharger vos données → <code>LikedSongs.json</code>.
+      </p>
+      <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">Importer</button>
+    </div>
+  </form>
+
+  <h2 class="text-sm font-medium text-white mt-8 mb-3">Playlists importées</h2>
+  <div class="rounded-xl border border-slate-800 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-900 text-xs uppercase text-slate-500">
+        <tr>
+          <th class="text-left px-3 py-2">Nom</th>
+          <th class="text-right px-3 py-2">Titres</th>
+          <th class="text-left px-3 py-2 hidden md:table-cell">Importée le</th>
+          <th class="text-right px-3 py-2">Sélection</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800/70">
+        {% for p in imports %}
+        <tr class="hover:bg-slate-900/60">
+          <td class="px-3 py-2 text-white truncate max-w-sm">{{ p.name }}</td>
+          <td class="px-3 py-2 text-right text-slate-300">{{ p.total }}</td>
+          <td class="px-3 py-2 text-slate-500 text-xs hidden md:table-cell">{{ (p.last_synced or '')[:16].replace('T', ' ') }}</td>
+          <td class="px-3 py-2 text-right">
+            <form method="post" action="/playlists/{{ p.id }}/toggle">
+              <button class="text-xs rounded px-2 py-1 {{ 'bg-emerald-600 text-white' if p.selected else 'bg-slate-800 text-slate-300' }}">
+                {{ 'Incluse' if p.selected else 'Exclue' }}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">Aucun import pour l'instant.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-xs text-slate-500 mt-3">
+    Une playlist importée ne peut pas être resynchronisée depuis Spotify (pas d'identifiant côté API) :
+    réimportez le fichier mis à jour, les titres déjà connus ne seront pas dupliqués.
+  </p>
+</div>
+{% endblock %}

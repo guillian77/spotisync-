@@ -4,6 +4,7 @@ Application web auto-hébergée qui transforme une bibliothèque Spotify (titres
 playlists) en fichiers audio rangés et tagués, prêts pour Navidrome/Jellyfin/Plex.
 
 - Liaison **Spotify OAuth PKCE** (client secret inutile), sélection des playlists à suivre
+- **Import de fichiers** (CSV Exportify, JSON d'export Spotify) : l'app reste utilisable sans Premium
 - Téléchargement via **spotDL** (audio YouTube Music, jamais le flux Spotify)
 - **Métadonnées** nettoyées : artistes multiples (`A/B` → `A; B`), piste, année, ISRC, pochette
 - **Anti-doublons** : ISRC puis titre/artiste proche + durée voisine, quarantaine plutôt que suppression
@@ -98,6 +99,20 @@ docker compose up -d --build
 3. **Playlists** : cocher celles à suivre → « Synchroniser la sélection ».
 4. **Tableau de bord** : « Lancer le téléchargement » (limite optionnelle pour tester).
 5. **Bibliothèque** → « Indexer le dossier musique » puis **Doublons** pour arbitrer.
+
+### Sans Premium : import de fichiers
+
+L'onglet **Import** accepte un **CSV Exportify** (https://exportify.app, fonctionne en compte
+gratuit) ou un **JSON d'export Spotify** (*Compte → Confidentialité → Télécharger vos données*,
+fichier `LikedSongs.json`). L'import crée une playlist « importée », déjà sélectionnée : le
+téléchargement, les tags et le dédoublonnage se comportent exactement comme pour une playlist
+Spotify. Réimporter un fichier mis à jour ne duplique pas les pistes (clé = identifiant Spotify,
+sinon titre + artiste normalisés) ; une playlist importée ne se resynchronise pas depuis l'API,
+il faut réimporter le fichier.
+
+L'URL de redirection OAuth doit utiliser **HTTPS** (ou `http://127.0.0.1:PORT`, seule exception
+autorisée par Spotify — une IP LAN comme `http://192.168.1.80:8080/callback` est refusée avec
+`400 redirect_uri: Insecure`). Derrière un reverse proxy TLS, c'est transparent.
 
 ## Développement
 

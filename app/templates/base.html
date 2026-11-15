@@ -21,7 +21,7 @@
     <nav class="flex gap-1 text-sm">
       {% set nav = [('/', 'Tableau de bord'), ('/playlists', 'Playlists'),
                     ('/library', 'Bibliothèque'), ('/duplicates', 'Doublons'),
-                    ('/settings', 'Réglages')] %}
+                    ('/import', 'Import'), ('/settings', 'Réglages')] %}
       {% for href, label in nav %}
         {% set active = request.url.path == href %}
         <a href="{{ href }}" class="px-3 py-1.5 rounded-md {{ 'bg-slate-800 text-white' if active else 'text-slate-400 hover:text-white hover:bg-slate-800/60' }}">{{ label }}</a>
@@ -29,10 +29,17 @@
     </nav>
     <div class="ml-auto flex items-center gap-3 text-xs text-slate-400">
       {% if account.connected %}
+        {% if account.profile_ok %}
         <span class="inline-flex items-center gap-1.5">
           <span class="w-2 h-2 rounded-full {{ 'bg-emerald-400' if account.premium else 'bg-amber-400' }}"></span>
           {{ account.name }} · {{ account.product }}
         </span>
+        {% else %}
+        <span class="inline-flex items-center gap-1.5 text-amber-400">
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+          jeton obtenu · profil refusé (Premium requis)
+        </span>
+        {% endif %}
       {% else %}
         <a href="/settings" class="text-amber-400 hover:underline">Compte Spotify non lié</a>
       {% endif %}

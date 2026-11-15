@@ -3,14 +3,14 @@ import json
 import os
 import time
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import quote_plus, urlencode
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import config, db, downloader, metadata, spotify, sync
+from . import config, db, downloader, importer, metadata, spotify, sync
 from .downloader import manager
 
 app = FastAPI(title=config.APP_NAME, version=config.VERSION)
@@ -52,10 +52,12 @@ def account_state() -> dict:
     acc = db.get_account()
     if not acc:
         return {"connected": False}
+    profile_ok = bool(acc["spotify_user_id"] or acc["display_name"])
     return {
         "connected": True,
-        "name": acc["display_name"] or acc["spotify_user_id"] or "?",
-        "product": acc["product"] or "?",
+        "profile_ok": profile_ok,
+        "name": acc["display_name"] or acc["spotify_user_id"] or "profil refusé",
+        "product": acc["product"] or "inconnu",
         "premium": (acc["product"] or "") == "premium",
         "expires_at": acc["expires_at"],
     }
@@ -225,6 +227,29 @@ async def settings_save(request: Request):
     for k in ("normalize_artists", "autosync_enabled", "autosync_download"):
         db.set_setting(k, "1" if form.get(k) else "0")
     return RedirectResponse("/settings?ok=Réglages+enregistrés", status_code=303)
+
+
+# --- import de fichiers (voie de secours sans API) -------------------------
+
+@app.get("/import", response_class=HTMLResponse)
+def import_page(request: Request, err: str = "", ok: str = ""):
+    imports = db.q("SELECT * FROM playlists WHERE id LIKE 'import:%' "
+                   "ORDER BY id DESC LIMIT 10")
+    return render(request, "import.html", err=err, ok=ok, imports=imports)
+
+
+@app.post("/import")
+async def import_upload(file: UploadFile = File(...), name: str = Form("")):
+    try:
+        data = await file.read()
+        if not data:
+            raise ValueError("Fichier vide")
+        res = importer.import_file(data, file.filename or "", name)
+    except (ValueError, json.JSONDecodeError) as exc:
+        return RedirectResponse("/import?err=" + quote_plus(str(exc)), status_code=303)
+    msg = (f"{res['new']} nouveaux, {res['updated']} mis à jour — "
+           f"{res['total']} titres dans « {res['playlist_name']} »")
+    return RedirectResponse("/import?ok=" + quote_plus(msg), status_code=303)
 
 
 # --- OAuth -----------------------------------------------------------------

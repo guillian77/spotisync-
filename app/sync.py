@@ -39,6 +39,8 @@ def refresh_playlists() -> int:
 
 
 def sync_tracks(playlist_id: str) -> dict:
+    if playlist_id.startswith("import:"):
+        raise RuntimeError("Playlist importée : réimportez le fichier, pas de synchronisation Spotify")
     tracks = spotify.playlist_tracks(playlist_id)
     run_id = db.run_start("sync:" + playlist_id, len(tracks))
     new = known = 0
@@ -76,9 +78,13 @@ def sync_selected(start_download: bool | None = None) -> dict:
     rows = db.q("SELECT id FROM playlists WHERE selected=1")
     if start_download is None:
         start_download = db.setting("autosync_download", "1") == "1"
-    summary = {"playlists": 0, "new": 0}
+    summary = {"playlists": 0, "new": 0, "skipped": 0}
     for r in rows:
-        res = sync_tracks(r["id"])
+        try:
+            res = sync_tracks(r["id"])
+        except RuntimeError:
+            summary["skipped"] += 1
+            continue
         summary["playlists"] += 1
         summary["new"] += res["new"]
     if start_download and summary["new"]:
