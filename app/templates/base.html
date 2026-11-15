@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
+  <style>
+    body { font-feature-settings: "cv02","cv03","cv04","cv11"; }
+    .htmx-request .spin { display: inline-block; }
+    .spin { display: none; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen">
+<header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-10">
+  <div class="max-w-6xl mx-auto px-4 h-14 flex items-center gap-6">
+    <a href="/" class="font-semibold tracking-tight text-white">{{ app_name }}</a>
+    <nav class="flex gap-1 text-sm">
+      {% set nav = [('/', 'Tableau de bord'), ('/playlists', 'Playlists'),
+                    ('/library', 'Bibliothèque'), ('/duplicates', 'Doublons'),
+                    ('/settings', 'Réglages')] %}
+      {% for href, label in nav %}
+        {% set active = request.url.path == href %}
+        <a href="{{ href }}" class="px-3 py-1.5 rounded-md {{ 'bg-slate-800 text-white' if active else 'text-slate-400 hover:text-white hover:bg-slate-800/60' }}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <div class="ml-auto flex items-center gap-3 text-xs text-slate-400">
+      {% if account.connected %}
+        <span class="inline-flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full {{ 'bg-emerald-400' if account.premium else 'bg-amber-400' }}"></span>
+          {{ account.name }} · {{ account.product }}
+        </span>
+      {% else %}
+        <a href="/settings" class="text-amber-400 hover:underline">Compte Spotify non lié</a>
+      {% endif %}
+      <span class="text-slate-600">v{{ version }}</span>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-8">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="max-w-6xl mx-auto px-4 py-8 text-xs text-slate-600">
+  Spotisync · métadonnées Spotify, audio via spotDL/YouTube Music · aucun flux Spotify n'est téléchargé
+</footer>
+</body>
+</html>

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Bibliothèque · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-5">
+  <div>
+    <h1 class="text-xl font-semibold text-white">Bibliothèque</h1>
+    <p class="text-sm text-slate-400">{{ total }} piste(s) correspondant au filtre.</p>
+  </div>
+  <div class="flex gap-2">
+    <form method="post" action="/library/scan">
+      <button class="rounded-md bg-slate-800 hover:bg-slate-700 text-sm px-4 py-2">Indexer le dossier musique</button>
+    </form>
+  </div>
+</div>
+
+<form method="get" action="/library" class="flex flex-wrap gap-2 mb-5 text-sm">
+  <input name="q" value="{{ q }}" placeholder="Titre, artiste, album…"
+         class="flex-1 min-w-48 rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
+  <select name="status" class="rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
+    <option value="">Tous les statuts</option>
+    {% for s in ['pending','queued','running','done','dupe','error'] %}
+    <option value="{{ s }}" {{ 'selected' if status == s }}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <button class="rounded-md bg-slate-700 hover:bg-slate-600 px-4 py-2">Filtrer</button>
+</form>
+
+{% if request.query_params.get('scanned') %}
+<div class="mb-4 rounded-lg border border-emerald-700 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200">
+  {{ request.query_params.get('scanned') }} fichier(s) indexé(s).
+</div>
+{% endif %}
+{% if request.query_params.get('scan_err') %}
+<div class="mb-4 rounded-lg border border-rose-700 bg-rose-900/30 px-4 py-3 text-sm text-rose-200">
+  {{ request.query_params.get('scan_err') }}
+</div>
+{% endif %}
+
+<div class="rounded-xl border border-slate-800 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-900 text-xs uppercase text-slate-500">
+      <tr>
+        <th class="text-left px-3 py-2">Titre</th>
+        <th class="text-left px-3 py-2 hidden md:table-cell">Album</th>
+        <th class="text-left px-3 py-2 hidden lg:table-cell">Ajouté</th>
+        <th class="text-right px-3 py-2">Statut</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-800/70">
+      {% for t in tracks %}
+      <tr class="hover:bg-slate-900/60">
+        <td class="px-3 py-2">
+          <div class="text-white truncate max-w-md">{{ t.title }}</div>
+          <div class="text-xs text-slate-500 truncate max-w-md">{{ t.artists }}</div>
+          {% if t.error %}<div class="text-xs text-rose-400 truncate max-w-md">{{ t.error }}</div>{% endif %}
+        </td>
+        <td class="px-3 py-2 text-slate-400 hidden md:table-cell truncate max-w-56">{{ t.album }}</td>
+        <td class="px-3 py-2 text-slate-500 text-xs hidden lg:table-cell">{{ (t.added_at or '')[:10] }}</td>
+        <td class="px-3 py-2 text-right">
+          <span class="text-xs rounded px-2 py-0.5
+            {{ 'bg-emerald-900/60 text-emerald-300' if t.status == 'done'
+               else 'bg-rose-900/60 text-rose-300' if t.status == 'error'
+               else 'bg-slate-800 text-slate-300' }}">{{ t.status }}</span>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">Aucun résultat.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if pages > 1 %}
+<div class="flex justify-center gap-2 mt-4 text-sm">
+  {% for p in range(1, pages + 1) %}
+    {% if p <= 3 or p > pages - 3 or (p - page)|abs <= 1 %}
+      <a href="/library?q={{ q }}&status={{ status }}&page={{ p }}"
+         class="px-3 py-1 rounded {{ 'bg-slate-700 text-white' if p == page else 'bg-slate-900 text-slate-400 hover:bg-slate-800' }}">{{ p }}</a>
+    {% elif p == 4 or p == pages - 3 %}
+      <span class="px-2 text-slate-600">…</span>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

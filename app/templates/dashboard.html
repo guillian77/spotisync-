@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord · {{ app_name }}{% endblock %}
+{% block content %}
+
+{% if notice %}
+  <div class="mb-6 rounded-lg border px-4 py-3 text-sm
+    {{ 'border-emerald-700 bg-emerald-900/30 text-emerald-200' if notice.k == 'ok'
+       else 'border-rose-700 bg-rose-900/30 text-rose-200' }}">
+    {{ notice.v }}
+  </div>
+{% endif %}
+
+{% if not account.connected %}
+<div class="mb-6 rounded-lg border border-amber-700 bg-amber-900/20 px-4 py-4 text-sm text-amber-100">
+  <p class="font-medium">Aucun compte Spotify lié.</p>
+  <p class="mt-1 text-amber-200/80">Renseignez un Client ID Spotify dans les
+    <a href="/settings" class="underline">réglages</a>, puis lancez la liaison. L'API Spotify exige
+    un compte <strong>Premium</strong> pour le propriétaire de l'application developer ; sans
+    Premium, la liaison renverra une erreur explicite.</p>
+</div>
+{% endif %}
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+  {% set cards = [('Titres connus', stats.total, 'text-white'),
+                  ('Téléchargés', stats.done, 'text-emerald-400'),
+                  ('En attente', stats.pending + stats.queued, 'text-sky-400'),
+                  ('Échecs', stats.error, 'text-rose-400')] %}
+  {% for label, value, color in cards %}
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <div class="text-xs uppercase tracking-wide text-slate-500">{{ label }}</div>
+    <div class="text-2xl font-semibold {{ color }}">{{ value }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid md:grid-cols-3 gap-4 mb-8 text-sm">
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <div class="text-slate-500 text-xs uppercase">Volume sur disque</div>
+    <div class="text-lg font-semibold text-white">{{ stats.size_gb }} Go</div>
+    <div class="text-slate-500">{{ stats.hours }} h de musique · {{ stats.dupe }} doublons ignorés</div>
+  </div>
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <div class="text-slate-500 text-xs uppercase">Playlists</div>
+    <div class="text-lg font-semibold text-white">{{ stats.selected }} / {{ stats.playlists }} sélectionnées</div>
+    <div class="text-slate-500">Dossier : <span class="text-slate-300">{{ cfg.music_dir }}</span></div>
+  </div>
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <div class="text-slate-500 text-xs uppercase">Format</div>
+    <div class="text-lg font-semibold text-white">{{ cfg.audio_format }} · {{ cfg.audio_bitrate }}</div>
+    <div class="text-slate-500">{{ cfg.threads }} téléchargement(s) parallèle(s)</div>
+  </div>
+</div>
+
+<div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 mb-8">
+  <div class="flex flex-wrap items-end gap-3">
+    <form method="post" action="/download/start" class="flex items-end gap-2">
+      <label class="text-xs text-slate-400">Limite (vide = tout)
+        <input name="limit" placeholder="∞" class="mt-1 w-24 rounded-md bg-slate-800 border border-slate-700 px-2 py-1.5 text-sm">
+      </label>
+      <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">Lancer le téléchargement</button>
+    </form>
+    <form method="post" action="/download/stop" onsubmit="return confirm('Arrêter le lot en cours ?')">
+      <button class="rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-4 py-2">Arrêter</button>
+    </form>
+    <form method="post" action="/download/retry">
+      <button class="rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-4 py-2">Relancer les échecs</button>
+    </form>
+    <form method="post" action="/library/scan">
+      <button class="rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-4 py-2">Scanner la bibliothèque</button>
+    </form>
+  </div>
+  <div id="progress" hx-get="/progress" hx-trigger="every 3s" hx-swap="innerHTML" class="mt-4">
+    {% include "_progress.html" %}
+  </div>
+</div>
+
+<div class="grid md:grid-cols-2 gap-4">
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <h2 class="text-sm font-medium text-white mb-3">Derniers ajouts</h2>
+    <ul class="space-y-2 text-sm">
+      {% for t in recent %}
+      <li class="flex justify-between gap-3">
+        <span class="truncate"><span class="text-white">{{ t.title }}</span>
+          <span class="text-slate-500">— {{ t.artists }}</span></span>
+        <span class="text-slate-600 text-xs shrink-0">{{ (t.updated_at or '')[0:10] }}</span>
+      </li>
+      {% else %}
+      <li class="text-slate-500">Rien pour l'instant.</li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <h2 class="text-sm font-medium text-white mb-3">Historique des tâches</h2>
+    <ul class="space-y-2 text-sm">
+      {% for r in runs %}
+      <li class="flex justify-between gap-3">
+        <span class="truncate text-slate-300">{{ r.kind }}</span>
+        <span class="text-xs shrink-0
+          {{ 'text-emerald-400' if r.status == 'done' else 'text-rose-400' if r.status in ('error','stopped') else 'text-sky-400' }}">
+          {{ r.status }} · {{ r.done }}/{{ r.total }}{% if r.failed %} · {{ r.failed }} échecs{% endif %}
+        </span>
+      </li>
+      {% else %}
+      <li class="text-slate-500">Aucune tâche.</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

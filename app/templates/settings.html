@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Réglages · {{ app_name }}{% endblock %}
+{% block content %}
+<h1 class="text-xl font-semibold text-white mb-1">Réglages</h1>
+<p class="text-sm text-slate-400 mb-6">Les valeurs sont stockées dans la base SQLite du conteneur (<span class="font-mono">/config</span>).</p>
+
+{% if err %}
+<div class="mb-4 rounded-lg border border-rose-700 bg-rose-900/30 px-4 py-3 text-sm text-rose-200">{{ err }}</div>
+{% endif %}
+{% if ok %}
+<div class="mb-4 rounded-lg border border-emerald-700 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200">{{ ok }}</div>
+{% endif %}
+
+<div class="grid lg:grid-cols-3 gap-4">
+  <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 lg:col-span-1">
+    <h2 class="text-sm font-medium text-white mb-3">Compte Spotify</h2>
+    {% if account.connected %}
+      <p class="text-sm text-slate-300">{{ account.name }} <span class="text-slate-500">({{ account.product }})</span></p>
+      {% if not account.premium %}
+      <p class="mt-2 text-xs text-amber-300/90">Compte non Premium : l'API Spotify refusera les appels
+        (politique Spotify pour les apps developer).</p>
+      {% endif %}
+      <div class="mt-3 flex gap-2">
+        <a href="/auth" class="rounded-md bg-slate-800 hover:bg-slate-700 text-sm px-3 py-1.5">Relier à nouveau</a>
+        <form method="post" action="/auth/disconnect">
+          <button class="rounded-md bg-rose-900/60 hover:bg-rose-800 text-sm px-3 py-1.5 text-rose-200">Délier</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="text-sm text-slate-400 mb-3">Aucun compte lié. Enregistrez d'abord le Client ID ci-dessous.</p>
+      <a href="/auth" class="inline-block rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">Lier mon compte</a>
+    {% endif %}
+    <p class="mt-3 text-xs text-slate-500">Redirect URI à déclarer dans l'app Spotify :
+      <span class="font-mono text-slate-300 block break-all">{{ cfg.spotify_redirect_uri }}</span></p>
+  </section>
+
+  <form method="post" action="/settings" class="lg:col-span-2 space-y-4">
+    <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+      <h2 class="text-sm font-medium text-white mb-3">Application Spotify</h2>
+      <div class="grid sm:grid-cols-2 gap-3 text-sm">
+        <label class="block">Client ID
+          <input name="spotify_client_id" value="{{ cfg.spotify_client_id }}"
+                 class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 font-mono text-xs">
+        </label>
+        <label class="block">Client secret (optionnel en PKCE)
+          <input name="spotify_client_secret" value="{{ cfg.spotify_client_secret }}" type="password"
+                 class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 font-mono text-xs">
+        </label>
+        <label class="block sm:col-span-2">Redirect URI
+          <input name="spotify_redirect_uri" value="{{ cfg.spotify_redirect_uri }}"
+                 class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 font-mono text-xs">
+        </label>
+      </div>
+    </section>
+
+    <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+      <h2 class="text-sm font-medium text-white mb-3">Stockage</h2>
+      <div class="grid sm:grid-cols-2 gap-3 text-sm">
+        <label class="block">Dossier d'export
+          <input name="music_dir" value="{{ cfg.music_dir }}"
+                 class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 font-mono text-xs">
+        </label>
+        <label class="block">Dossier de quarantaine
+          <input name="quarantine_subdir" value="{{ cfg.quarantine_subdir }}"
+                 class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 font-mono text-xs">
+        </label>
+        <label class="block sm:col-span-2">Modèle de nommage
+          <input name="output_template" value="{{ cfg.output_template }}"
+                 class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 font-mono text-xs">
+          <span class="text-xs text-slate-500">Variables : {artist} {album_artist} {album} {title} {track:02d} {disc} {year}</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+      <h2 class="text-sm font-medium text-white mb-3">Audio et téléchargement</h2>
+      <div class="grid sm:grid-cols-4 gap-3 text-sm">
+        <label class="block">Format
+          <select name="audio_format" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
+            {% for f in formats %}<option value="{{ f }}" {{ 'selected' if cfg.audio_format == f }}>{{ f }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="block">Bitrate
+          <select name="audio_bitrate" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
+            {% for b in bitrates %}<option value="{{ b }}" {{ 'selected' if cfg.audio_bitrate == b }}>{{ b }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="block">Parallélisme
+          <input name="threads" type="number" min="1" max="6" value="{{ cfg.threads }}"
+                 class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
+        </label>
+        <label class="block">Runtime JS
+          <input name="js_runtime" value="{{ cfg.js_runtime }}" placeholder="node"
+                 class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
+        </label>
+        <label class="block">Seuil doublons (0-100)
+          <input name="dupe_threshold" type="number" min="70" max="100" value="{{ cfg.dupe_threshold }}"
+                 class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
+        </label>
+        <label class="flex items-center gap-2 mt-6">
+          <input type="checkbox" name="normalize_artists" {{ 'checked' if cfg.normalize_artists == '1' }} class="accent-emerald-500">
+          <span>Normaliser les artistes</span>
+        </label>
+      </div>
+      <p class="mt-3 text-xs text-slate-500">
+        L'audio provient de YouTube Music (via spotDL), pas du flux Spotify : MP3/Opus sont des ré-encodages
+        d'une source lossy, le FLAC n'apporterait aucune qualité supplémentaire.
+      </p>
+    </section>
+
+    <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+      <h2 class="text-sm font-medium text-white mb-3">Synchronisation automatique</h2>
+      <div class="grid sm:grid-cols-3 gap-3 text-sm items-end">
+        <label class="flex items-center gap-2">
+          <input type="checkbox" name="autosync_enabled" {{ 'checked' if cfg.autosync_enabled == '1' }} class="accent-emerald-500">
+          <span>Activer</span>
+        </label>
+        <label class="block">Intervalle (minutes)
+          <input name="autosync_interval_min" type="number" min="5" value="{{ cfg.autosync_interval_min }}"
+                 class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" name="autosync_download" {{ 'checked' if cfg.autosync_download == '1' }} class="accent-emerald-500">
+          <span>Télécharger les nouveautés</span>
+        </label>
+      </div>
+    </section>
+
+    <div class="flex justify-end">
+      <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-5 py-2">Enregistrer</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

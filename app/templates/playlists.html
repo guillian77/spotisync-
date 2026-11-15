@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Playlists · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+  <div>
+    <h1 class="text-xl font-semibold text-white">Playlists</h1>
+    <p class="text-sm text-slate-400">Cochez celles à synchroniser, puis lancez la synchronisation.</p>
+  </div>
+  <div class="flex gap-2">
+    <form method="post" action="/playlists/refresh">
+      <button class="rounded-md bg-slate-800 hover:bg-slate-700 text-sm px-4 py-2">Rafraîchir depuis Spotify</button>
+    </form>
+    <form method="post" action="/sync">
+      <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">Synchroniser la sélection</button>
+    </form>
+  </div>
+</div>
+
+{% if request.query_params.get('err') %}
+<div class="mb-4 rounded-lg border border-rose-700 bg-rose-900/30 px-4 py-3 text-sm text-rose-200">
+  {{ request.query_params.get('err') }}
+</div>
+{% endif %}
+{% if request.query_params.get('ok') %}
+<div class="mb-4 rounded-lg border border-emerald-700 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200">
+  {{ request.query_params.get('ok') }} nouvelle(s) piste(s) ajoutée(s) à la file.
+</div>
+{% endif %}
+
+<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+  {% for p in playlists %}
+  <div class="rounded-xl border {{ 'border-emerald-700/60 bg-emerald-950/20' if p.selected else 'border-slate-800 bg-slate-900/50' }} p-3 flex gap-3">
+    {% if p.image %}
+      <img src="{{ p.image }}" alt="" class="w-16 h-16 rounded object-cover shrink-0">
+    {% else %}
+      <div class="w-16 h-16 rounded bg-slate-800 shrink-0 flex items-center justify-center text-xl">{% if p.is_liked %}♥{% else %}♪{% endif %}</div>
+    {% endif %}
+    <div class="min-w-0 flex-1">
+      <div class="font-medium text-white truncate">{{ p.name }}</div>
+      <div class="text-xs text-slate-500 truncate">{{ p.total }} titres{% if p.owner %} · {{ p.owner }}{% endif %}</div>
+      <div class="text-xs text-slate-600">Synchronisée : {{ (p.last_synced or '—')[0:16].replace('T', ' ') }}</div>
+      <form method="post" action="/playlists/{{ p.id }}/toggle" class="mt-2">
+        <button class="text-xs rounded px-2 py-1 {{ 'bg-emerald-600 text-white hover:bg-emerald-500' if p.selected else 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
+          {{ 'Sélectionnée' if p.selected else 'Sélectionner' }}
+        </button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-span-full rounded-xl border border-slate-800 bg-slate-900/50 p-6 text-sm text-slate-400">
+    Aucune playlist en base. Liez votre compte dans les réglages, puis cliquez sur « Rafraîchir depuis Spotify ».
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

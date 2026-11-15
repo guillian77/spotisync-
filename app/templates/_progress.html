@@ -1,0 +1,17 @@
+{% if manager.active %}
+<div class="rounded-lg border border-sky-800 bg-sky-950/40 p-3">
+  <div class="flex justify-between text-xs text-sky-200 mb-2">
+    <span><span class="spin">⟳</span> Téléchargement en cours</span>
+    <span>{{ manager.done }} / {{ manager.total }} · {{ manager.failed }} échec(s)</span>
+  </div>
+  {% set pct = (manager.done * 100 / manager.total) if manager.total else 0 %}
+  <div class="h-2 rounded bg-slate-800 overflow-hidden">
+    <div class="h-full bg-sky-500 transition-all" style="width: {{ '%.1f'|format(pct) }}%"></div>
+  </div>
+  {% if manager.current %}
+  <div class="mt-2 text-xs text-slate-400 truncate">{{ manager.current[-1] }}</div>
+  {% endif %}
+</div>
+{% else %}
+<div class="text-xs text-slate-500">Aucun téléchargement en cours.</div>
+{% endif %}

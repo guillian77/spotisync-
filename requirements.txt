@@ -1,0 +1,7 @@
+# spotdl épingle lui-même fastapi/uvicorn/starlette/mutagen : ne pas les contraindre
+# ici, sinon la résolution échoue (spotdl 4.6.0 exige fastapi>=0.163).
+spotdl==4.6.0
+jinja2
+python-multipart
+itsdangerous
+httpx
