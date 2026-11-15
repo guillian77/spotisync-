@@ -54,6 +54,13 @@ def autosync_finished(new_tracks: int, playlists: int) -> None:
          f"{new_tracks} nouveau(x) titre(s) détecté(s) sur {playlists} playlist(s).")
 
 
+def resume_started(pending: int) -> None:
+    if not _enabled("notify_resume") or not webhook():
+        return
+    send(f"▶️ **Reprise automatique**\n{pending} titre(s) restés en attente ont été "
+         f"remis en file au démarrage du conteneur.")
+
+
 def test() -> tuple[bool, str]:
     return send("🧪 Test de notification Spotisync — le webhook fonctionne.",
                 title="Spotisync")

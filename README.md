@@ -12,8 +12,10 @@ playlists) en fichiers audio rangés et tagués, prêts pour Navidrome/Jellyfin/
 - **Anti-doublons** : ISRC puis titre/artiste proche + durée voisine, quarantaine plutôt que suppression
 - **Bibliothèque** consultable, filtres par statut, index du dossier musique
 - **Auto-sync** périodique des nouveautés
+- **Reprise automatique** des téléchargements interrompus par un redémarrage du conteneur
+  (désactivable dans les réglages)
 - **Notifications Discord** par webhook : fin de téléchargement, échecs, synchronisation
-  automatique (bouton de test dans les réglages ; un webhook cassé ne bloque jamais un lot)
+  automatique, reprise après démarrage (bouton de test ; un webhook cassé ne bloque jamais un lot)
 - **1 seul conteneur** (FastAPI + SQLite + HTMX), PUID/PGID, healthcheck
 
 > ⚠️ L'audio ne provient pas de Spotify (DRM) mais de YouTube Music via spotDL : MP3/Opus sont
@@ -147,6 +149,9 @@ Arborescence : `app/{config,db,spotify,sync,downloader,metadata,main}.py`,
   runtime JS récent pour les challenges de YouTube ; le paquet Debian `nodejs` est trop ancien.
   L'image installe **Deno** (runtime par défaut) et le code retombe sur `node` s'il est absent.
   En cas de doute : `docker exec Spotisync deno --version`.
+- **Après un redémarrage, des titres restent « en attente »** : la reprise automatique est
+  désactivée dans les réglages, ou le compte n'a plus de piste `pending`. Les états
+  `queued`/`running` laissés par un arrêt brutal sont remis en `pending` au démarrage.
 - **`400 redirect_uri: Insecure`** : Spotify exige HTTPS, ou `http://127.0.0.1:PORT` pour
   une adresse de bouclage. `localhost` et les IP LAN sont refusés.
 - **`403 Active premium subscription required for the owner of the app`** : politique

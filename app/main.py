@@ -5,6 +5,8 @@ import time
 from pathlib import Path
 from urllib.parse import quote_plus, urlencode
 
+import threading
+
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -23,6 +25,28 @@ def _startup() -> None:
     config.ensure_dirs()
     db.init()
     sync.scheduler.start()
+    threading.Thread(target=_resume_on_start, daemon=True).start()
+
+
+def _resume_on_start(delay: float = 3.0) -> None:
+    """Reprend les téléchargements interrompus par l'arrêt du conteneur."""
+    time.sleep(delay)
+    if db.setting("resume_on_start", "1") != "1":
+        return
+    # une piste restée 'queued'/'running' vient forcément d'un arrêt brutal
+    db.qx("UPDATE tracks SET status='pending' WHERE status IN ('queued','running') "
+          "AND file_path IS NULL")
+    pending = db.q1("SELECT COUNT(*) c FROM tracks WHERE wanted=1 AND status='pending'")["c"]
+    if not pending:
+        return
+    try:
+        manager.start(include_errors=False)
+    except RuntimeError:
+        return
+    try:
+        notify.resume_started(pending)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 # --- helpers ---------------------------------------------------------------
@@ -316,7 +340,8 @@ async def settings_save(request: Request):
         if k in form:
             db.set_setting(k, str(form[k]).strip())
     for k in ("normalize_artists", "autosync_enabled", "autosync_download",
-              "notify_download_done", "notify_download_errors", "notify_autosync"):
+              "notify_download_done", "notify_download_errors", "notify_autosync",
+              "notify_resume", "resume_on_start"):
         db.set_setting(k, "1" if form.get(k) else "0")
     return RedirectResponse("/settings?ok=Réglages+enregistrés", status_code=303)
 

@@ -81,3 +81,24 @@ def test_autosync_ignores_empty_batch(monkeypatch):
     assert sent == []
     notify.autosync_finished(new_tracks=3, playlists=2)
     assert len(sent) == 1 and "3 nouveau" in sent[0]
+
+
+def test_resume_notification_respects_toggle(monkeypatch):
+    sent = []
+    monkeypatch.setattr(notify, "send", lambda content, title="": sent.append(content) or (True, "ok"))
+    monkeypatch.setattr(notify, "webhook", lambda: "https://discord.com/api/webhooks/1/x")
+
+    monkeypatch.setattr(notify, "_enabled", lambda key: key == "notify_resume")
+    notify.resume_started(pending=4)
+    assert len(sent) == 1 and "Reprise automatique" in sent[0] and "4" in sent[0]
+
+    sent.clear()
+    monkeypatch.setattr(notify, "_enabled", lambda key: False)
+    notify.resume_started(pending=4)
+    assert sent == []
+
+    sent.clear()
+    monkeypatch.setattr(notify, "_enabled", lambda key: True)
+    monkeypatch.setattr(notify, "webhook", lambda: "")
+    notify.resume_started(pending=4)  # pas de webhook : rien, et pas d'erreur
+    assert sent == []

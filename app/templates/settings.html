@@ -112,6 +112,10 @@
           <input type="checkbox" name="normalize_artists" {{ 'checked' if cfg.normalize_artists == '1' }} class="accent-emerald-500">
           <span>Normaliser les artistes</span>
         </label>
+        <label class="flex items-center gap-2 mt-6 sm:col-span-2">
+          <input type="checkbox" name="resume_on_start" {{ 'checked' if cfg.resume_on_start == '1' }} class="accent-emerald-500">
+          <span>Reprendre les téléchargements en attente au démarrage du conteneur</span>
+        </label>
       </div>
       <p class="mt-3 text-xs text-slate-500">
         L'audio provient de YouTube Music (via spotDL), pas du flux Spotify : MP3/Opus sont des ré-encodages
@@ -163,7 +167,7 @@
                  placeholder="https://discord.com/api/webhooks/…"
                  class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 font-mono text-xs">
         </label>
-        <div class="grid sm:grid-cols-3 gap-2">
+        <div class="grid sm:grid-cols-2 gap-2">
           <label class="flex items-start gap-2">
             <input type="checkbox" name="notify_download_done" {{ 'checked' if cfg.notify_download_done == '1' }} class="accent-emerald-500 mt-0.5">
             <span>Envoyer quand un téléchargement se termine</span>
@@ -175,6 +179,10 @@
           <label class="flex items-start gap-2">
             <input type="checkbox" name="notify_autosync" {{ 'checked' if cfg.notify_autosync == '1' }} class="accent-emerald-500 mt-0.5">
             <span>Envoyer lors d'une synchronisation automatique (nouveaux titres)</span>
+          </label>
+          <label class="flex items-start gap-2">
+            <input type="checkbox" name="notify_resume" {{ 'checked' if cfg.notify_resume == '1' }} class="accent-emerald-500 mt-0.5">
+            <span>Envoyer à la reprise d'un téléchargement (démarrage du conteneur)</span>
           </label>
         </div>
       </div>

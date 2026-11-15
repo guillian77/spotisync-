@@ -53,7 +53,8 @@ class DownloadManager:
         }
 
     # --- cycle de vie -----------------------------------------------------
-    def start(self, limit: int | None = None, track_ids: list[int] | None = None) -> int:
+    def start(self, limit: int | None = None, track_ids: list[int] | None = None,
+              include_errors: bool = True) -> int:
         with self._lock:
             if self.active():
                 raise RuntimeError("Un téléchargement est déjà en cours")
@@ -63,8 +64,9 @@ class DownloadManager:
                     f"SELECT * FROM tracks WHERE id IN ({marks}) AND status != 'done'",
                     tuple(track_ids))
             else:
-                sql = ("SELECT * FROM tracks WHERE wanted=1 AND status IN "
-                       "('pending','error') ORDER BY id")
+                statuses = "('pending','error')" if include_errors else "('pending')"
+                sql = (f"SELECT * FROM tracks WHERE wanted=1 AND status IN {statuses} "
+                       "ORDER BY id")
                 if limit:
                     sql += f" LIMIT {int(limit)}"
                 rows = db.q(sql)
