@@ -139,6 +139,10 @@ Arborescence : `app/{config,db,spotify,sync,downloader,metadata,main}.py`,
 - **`/music` non inscriptible** : le conteneur ne fait jamais de `chown` sur ce volume.
   Les réglages affichent « accessible en écriture » ou un avertissement rouge ; aligner
   `PUID`/`PGID` sur le propriétaire du partage (99:100 par défaut sur Unraid).
+- **Les fichiers téléchargés appartiennent à `nobody`** : `PUID=99` est la valeur par défaut du
+  template, elle ne convient qu'aux partages possédés par `nobody`. Pour un utilisateur nommé,
+  mettre son UID (`id -u guillian` → 1000) et `PGID=100`, **recréer le conteneur**, puis
+  `chown -R 1000:100 /mnt/user/<partage>`. Vérification : `docker exec Spotisync id app`.
 - **`Some YouTube downloads require Deno` / `YT-DLP download error`** : yt-dlp a besoin d'un
   runtime JS récent pour les challenges de YouTube ; le paquet Debian `nodejs` est trop ancien.
   L'image installe **Deno** (runtime par défaut) et le code retombe sur `node` s'il est absent.
