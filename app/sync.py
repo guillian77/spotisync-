@@ -123,8 +123,14 @@ class Scheduler:
                     if db.get_account():
                         from .downloader import manager
                         if not manager.active():
-                            sync_selected()
+                            summary = sync_selected()
                             self._last = _now()
+                            try:
+                                from . import notify
+                                notify.autosync_finished(summary.get("new", 0),
+                                                         summary.get("playlists", 0))
+                            except Exception:  # noqa: BLE001
+                                pass
                     self._stop.wait(interval)
                 else:
                     self._stop.wait(60)

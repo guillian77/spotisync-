@@ -150,6 +150,47 @@
       </p>
     </section>
 
+    <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+      <h2 class="text-sm font-medium text-white">Notifications Discord</h2>
+      <p class="mt-2 mb-3 text-xs text-slate-400 leading-relaxed">
+        Collez l'URL d'un webhook Discord (Salon → Modifier le salon → Intégrations → Webhooks →
+        Copier l'URL). Laissez vide pour désactiver. Un échec d'envoi n'interrompt jamais un
+        téléchargement.
+      </p>
+      <div class="grid gap-3 text-sm">
+        <label class="block">URL du webhook
+          <input name="discord_webhook" value="{{ cfg.discord_webhook }}"
+                 placeholder="https://discord.com/api/webhooks/…"
+                 class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 font-mono text-xs">
+        </label>
+        <div class="grid sm:grid-cols-3 gap-2">
+          <label class="flex items-start gap-2">
+            <input type="checkbox" name="notify_download_done" {{ 'checked' if cfg.notify_download_done == '1' }} class="accent-emerald-500 mt-0.5">
+            <span>Envoyer quand un téléchargement se termine</span>
+          </label>
+          <label class="flex items-start gap-2">
+            <input type="checkbox" name="notify_download_errors" {{ 'checked' if cfg.notify_download_errors == '1' }} class="accent-emerald-500 mt-0.5">
+            <span>Envoyer en cas d'échecs</span>
+          </label>
+          <label class="flex items-start gap-2">
+            <input type="checkbox" name="notify_autosync" {{ 'checked' if cfg.notify_autosync == '1' }} class="accent-emerald-500 mt-0.5">
+            <span>Envoyer lors d'une synchronisation automatique (nouveaux titres)</span>
+          </label>
+        </div>
+      </div>
+      <div class="mt-3 flex items-center gap-3">
+        <button formaction="/settings/notify-test" formmethod="post"
+                class="inline-flex items-center gap-2 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 10l13-6-4.5 6L16 16l-13-6Z"/>
+          </svg>
+          Envoyer une notification de test
+        </button>
+        <span class="text-xs text-slate-500">enregistrez d'abord l'URL, puis testez</span>
+      </div>
+    </section>
+
     <div class="flex justify-end">
       <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-5 py-2">Enregistrer</button>
     </div>

@@ -117,10 +117,17 @@ class DownloadManager:
         with self._lock:
             self._pool = None
         self.stopping = False
+        stopped = self._stop.is_set()
         if self.run_id:
-            status = "stopped" if self._stop.is_set() else "done"
+            status = "stopped" if stopped else "done"
             db.run_finish(self.run_id, status,
                           f"{self.done} réussis, {self.failed} échecs")
+        if not stopped:
+            try:
+                from . import notify
+                notify.download_finished(self.done, self.failed, self.total)
+            except Exception:  # noqa: BLE001 - une notification ne casse jamais la fin de lot
+                pass
 
     # --- travail ----------------------------------------------------------
     def _download_by_id(self, track_id: int) -> None:

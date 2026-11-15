@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import config, db, downloader, importer, metadata, spotify, sync
+from . import config, db, downloader, importer, metadata, notify, spotify, sync
 from .downloader import manager
 
 app = FastAPI(title=config.APP_NAME, version=config.VERSION)
@@ -293,17 +293,30 @@ def settings_page(request: Request, err: str = "", ok: str = ""):
                   writable_config=writable(str(config.CONFIG_DIR)))
 
 
+@app.post("/settings/notify-test")
+async def settings_notify_test(request: Request):
+    # le bouton est dans le formulaire de réglages : on enregistre l'URL avant de tester
+    form = await request.form()
+    if "discord_webhook" in form:
+        db.set_setting("discord_webhook", str(form["discord_webhook"]).strip())
+    ok, detail = notify.test()
+    param = "ok" if ok else "err"
+    return RedirectResponse(f"/settings?{param}=" + quote_plus("Notification : " + detail),
+                            status_code=303)
+
+
 @app.post("/settings")
 async def settings_save(request: Request):
     form = await request.form()
     keys = ["spotify_client_id", "spotify_client_secret", "spotify_redirect_uri",
             "music_dir", "output_template", "audio_format", "audio_bitrate",
             "threads", "js_runtime", "overwrite_mode", "dupe_threshold",
-            "quarantine_subdir", "autosync_interval_min"]
+            "quarantine_subdir", "autosync_interval_min", "discord_webhook"]
     for k in keys:
         if k in form:
             db.set_setting(k, str(form[k]).strip())
-    for k in ("normalize_artists", "autosync_enabled", "autosync_download"):
+    for k in ("normalize_artists", "autosync_enabled", "autosync_download",
+              "notify_download_done", "notify_download_errors", "notify_autosync"):
         db.set_setting(k, "1" if form.get(k) else "0")
     return RedirectResponse("/settings?ok=Réglages+enregistrés", status_code=303)
 

@@ -12,6 +12,8 @@ playlists) en fichiers audio rangés et tagués, prêts pour Navidrome/Jellyfin/
 - **Anti-doublons** : ISRC puis titre/artiste proche + durée voisine, quarantaine plutôt que suppression
 - **Bibliothèque** consultable, filtres par statut, index du dossier musique
 - **Auto-sync** périodique des nouveautés
+- **Notifications Discord** par webhook : fin de téléchargement, échecs, synchronisation
+  automatique (bouton de test dans les réglages ; un webhook cassé ne bloque jamais un lot)
 - **1 seul conteneur** (FastAPI + SQLite + HTMX), PUID/PGID, healthcheck
 
 > ⚠️ L'audio ne provient pas de Spotify (DRM) mais de YouTube Music via spotDL : MP3/Opus sont
@@ -91,7 +93,7 @@ docker compose up -d --build
 - `/music` → `/mnt/user/music` (dossier d'export, modifiable ensuite dans l'UI)
 - port `8080` (interne et externe, `SPOTISYNC_PORT` pour changer côté conteneur)
 - variables : `PUID`, `PGID`, `TZ`, `SPOTISYNC_PORT`, `SPOTISYNC_MUSIC`,
-  `SPOTIFY_CLIENT_ID`, `SPOTIFY_REDIRECT_URI`
+  `SPOTIFY_CLIENT_ID`, `SPOTIFY_REDIRECT_URI`, `DISCORD_WEBHOOK`
 - santé : `GET /api/status` (touche la base, atteste aussi que le schéma existe)
 
 ## Utilisation

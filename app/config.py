@@ -8,7 +8,7 @@ def _env(key: str, default: str = "") -> str:
 
 
 APP_NAME = "Spotisync"
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 
 CONFIG_DIR = Path(_env("SPOTISYNC_CONFIG", "/config"))
 DEFAULT_MUSIC_DIR = _env("SPOTISYNC_MUSIC", "/music")
@@ -39,6 +39,10 @@ DEFAULTS = {
     "autosync_enabled": "0",
     "autosync_interval_min": "360",
     "autosync_download": "1",
+    "discord_webhook": _env("DISCORD_WEBHOOK", ""),
+    "notify_download_done": "0",
+    "notify_download_errors": "1",
+    "notify_autosync": "1",
 }
 
 FORMATS = ["mp3", "opus", "m4a", "flac", "ogg", "wav"]
