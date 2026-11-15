@@ -1,6 +1,15 @@
 {# Bloc de contrôle du téléchargement — rafraîchi par HTMX toutes les 3 s #}
 {% if manager.active %}
 <div class="flex flex-wrap items-center gap-3 text-sm">
+  {% if manager.stopping %}
+  <span class="inline-flex items-center gap-2 rounded-full bg-amber-900/40 border border-amber-700/60 px-3 py-1 text-amber-300">
+    <span class="relative flex h-2 w-2">
+      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+      <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
+    </span>
+    Arrêt demandé — interruption en cours…
+  </span>
+  {% else %}
   <span class="inline-flex items-center gap-2 rounded-full bg-emerald-900/40 border border-emerald-700/60 px-3 py-1 text-emerald-300">
     <span class="relative flex h-2 w-2">
       <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -8,6 +17,7 @@
     </span>
     Téléchargement en cours
   </span>
+  {% endif %}
   <span class="text-slate-400">{{ manager.done }} / {{ manager.total }} terminés{% if manager.failed %} · <span class="text-rose-300">{{ manager.failed }} échec(s)</span>{% endif %}</span>
 </div>
 {% set pct = (manager.done * 100 / manager.total) if manager.total else 0 %}
@@ -57,13 +67,13 @@
   </form>
 
   <form method="post" action="/download/stop" onsubmit="return confirm('Arrêter le lot en cours ?')">
-    <button {{ 'disabled' if not manager.active }}
+    <button {{ 'disabled' if not manager.active or manager.stopping }}
             class="inline-flex items-center gap-2 rounded-md bg-slate-800 text-slate-200 text-sm px-4 py-2
                    enabled:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed">
       <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
         <rect x="5" y="5" width="10" height="10" rx="1.5"/>
       </svg>
-      Arrêter
+      {{ 'Arrêt…' if manager.stopping else 'Arrêter' }}
     </button>
   </form>
 

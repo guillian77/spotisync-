@@ -18,6 +18,7 @@ STATUS_RUNNING = "running"
 STATUS_DONE = "done"
 STATUS_DUPE = "dupe"
 STATUS_ERROR = "error"
+STATUS_STOPPED = "stopped"
 
 
 class DownloadManager:
@@ -32,6 +33,9 @@ class DownloadManager:
         self.done = 0
         self.failed = 0
         self.current: list[str] = []
+        self._procs: set = set()
+        self._procs_lock = threading.Lock()
+        self.stopping = False
 
     # --- état -------------------------------------------------------------
     def active(self) -> bool:
@@ -45,6 +49,7 @@ class DownloadManager:
             "done": self.done,
             "failed": self.failed,
             "current": self.current[-5:],
+            "stopping": self.stopping,
         }
 
     # --- cycle de vie -----------------------------------------------------
@@ -70,6 +75,7 @@ class DownloadManager:
                 db.qx("UPDATE tracks SET status='queued', updated_at=? WHERE id=?",
                       (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), i))
             self._stop.clear()
+            self.stopping = False
             self.run_id = db.run_start("download", len(ids))
             self.total, self.done, self.failed = len(ids), 0, 0
             self.current = []
@@ -81,8 +87,28 @@ class DownloadManager:
             return self.run_id
 
     def stop(self) -> None:
+        """Arrêt immédiat : on tue les sous-processus spotDL en cours, pas seulement la file."""
+        self.stopping = True
         self._stop.set()
         db.qx("UPDATE tracks SET status='pending' WHERE status='queued'")
+        self._kill_running()
+
+    # --- sous-processus en cours -----------------------------------------
+    def register(self, proc) -> None:
+        with self._procs_lock:
+            self._procs.add(proc)
+
+    def unregister(self, proc) -> None:
+        with self._procs_lock:
+            self._procs.discard(proc)
+
+    def _kill_running(self) -> None:
+        with self._procs_lock:
+            procs = list(self._procs)
+        for proc in procs:
+            _kill_tree(proc)
+        # les pistes interrompues repartiront au prochain lancement
+        db.qx("UPDATE tracks SET status='pending' WHERE status='running' AND file_path IS NULL")
 
     def _watch(self) -> None:
         pool = self._pool
@@ -90,6 +116,7 @@ class DownloadManager:
             pool.shutdown(wait=True)
         with self._lock:
             self._pool = None
+        self.stopping = False
         if self.run_id:
             status = "stopped" if self._stop.is_set() else "done"
             db.run_finish(self.run_id, status,
@@ -118,6 +145,10 @@ class DownloadManager:
             db.qx("UPDATE tracks SET status='done', file_path=?, file_size=?, error=NULL,"
                   " attempts=attempts+1, updated_at=? WHERE id=?",
                   (detail.get("path"), detail.get("size"), now, track_id))
+        elif status == STATUS_STOPPED:
+            db.qx("UPDATE tracks SET status='pending', error=NULL, updated_at=? WHERE id=?",
+                  (now, track_id))
+            return
         elif status == STATUS_DUPE:
             self.done += 1
             db.qx("UPDATE tracks SET status='dupe', error=?, attempts=attempts+1,"
@@ -195,6 +226,24 @@ def log_failure(track: dict, proc) -> None:
         pass
 
 
+def _kill_tree(proc, grace: float = 5.0) -> None:
+    """Tue le groupe de processus complet (spotDL + yt-dlp + ffmpeg).
+
+    Un simple terminate() ne tue que le shell intermédiaire : ses enfants gardent le
+    tube de sortie ouvert, donc communicate() bloque jusqu'à leur fin naturelle."""
+    import signal
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(os.getpgid(proc.pid), sig)
+        except (ProcessLookupError, PermissionError):
+            break
+        try:
+            proc.wait(timeout=grace)
+            break
+        except subprocess.TimeoutExpired:
+            continue
+
+
 def download_one(track: dict) -> tuple[str, dict | str]:
     url = track.get("url") or ""
     if not url and track.get("spotify_id"):
@@ -211,12 +260,32 @@ def download_one(track: dict) -> tuple[str, dict | str]:
     cmd = [SPOTDL_BIN, "download", url,
            "--output", "{title}", "--format", fmt, "--bitrate", bitrate,
            "--overwrite", "force", "--simple-tui", "--print-errors"] + _yt_dlp_args()
-    proc = subprocess.run(cmd, cwd=staging, capture_output=True, text=True,
-                          timeout=900, env=run_env())
+    from types import SimpleNamespace
+
+    proc = subprocess.Popen(cmd, cwd=staging, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, env=run_env(),
+                            start_new_session=True)  # groupe dédié : yt-dlp/ffmpeg tués avec lui
+    manager.register(proc)
+    try:
+        out, err = proc.communicate(timeout=900)
+    except subprocess.TimeoutExpired:
+        _kill_tree(proc)
+        out, err = proc.communicate()
+        manager.unregister(proc)
+        log_failure(track, SimpleNamespace(returncode=-1, stdout=out, stderr="délai dépassé"))
+        return STATUS_ERROR, "Délai dépassé (15 min)"
+    finally:
+        manager.unregister(proc)
+
+    if manager.stopping or manager._stop.is_set():
+        shutil.rmtree(staging, ignore_errors=True)
+        return STATUS_STOPPED, "interrompu par l'utilisateur"
+
+    result = SimpleNamespace(returncode=proc.returncode, stdout=out, stderr=err)
     audio = metadata.find_audio(staging)
     if audio is None:
-        log_failure(track, proc)
-        return STATUS_ERROR, error_excerpt(proc)
+        log_failure(track, result)
+        return STATUS_ERROR, error_excerpt(result)
 
     info = metadata.read_tags(audio)
     if not info.get("duration_s"):
