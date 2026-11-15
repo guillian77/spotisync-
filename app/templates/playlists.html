@@ -6,7 +6,7 @@
     <h1 class="text-xl font-semibold text-white">Playlists</h1>
     <p class="text-sm text-slate-400">
       {{ playlists|length }} playlist(s) · {{ selected_count }} sélectionnée(s) ·
-      {{ total_tracks }} titres connus. Sélectionnez ce qui doit être synchronisé, puis téléchargé.
+      {{ total_tracks }} titres connus.
     </p>
   </div>
   <div class="flex gap-2">
@@ -14,9 +14,17 @@
       <button class="rounded-md bg-slate-800 hover:bg-slate-700 text-sm px-4 py-2">Rafraîchir depuis Spotify</button>
     </form>
     <form method="post" action="/sync">
-      <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">Synchroniser la sélection</button>
+      <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">Récupérer les nouveaux titres</button>
     </form>
   </div>
+</div>
+
+<div class="mb-4 rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-3 text-xs text-slate-400 leading-relaxed">
+  <strong class="text-slate-300">Récupérer les nouveaux titres</strong> relit vos playlists Spotify et
+  enregistre leur <em>liste</em> de titres : <strong>aucun fichier audio n'est téléchargé</strong>
+  (le téléchargement se lance depuis le tableau de bord). Les playlists portant le badge
+  <span class="text-sky-300">Import</span> ne peuvent pas être relues sur Spotify : réimportez le
+  fichier mis à jour, les titres déjà connus ne seront pas dupliqués.
 </div>
 
 {% if request.query_params.get('err') %}

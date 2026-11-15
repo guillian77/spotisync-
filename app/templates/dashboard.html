@@ -69,7 +69,16 @@
       <button class="rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-4 py-2">Scanner la bibliothèque</button>
     </form>
   </div>
-  <div id="progress" hx-get="/progress" hx-trigger="every 3s" hx-swap="innerHTML" class="mt-4">
+  <p class="mt-4 text-xs text-slate-500">
+    Dernière récupération des listes :
+    <span class="text-slate-300">{{ sync_state.last or 'jamais' }}</span>
+    {% if sync_state.enabled %}
+      · automatique toutes les {{ sync_state.interval_h }} h{% if sync_state.next %} (prochaine vers {{ sync_state.next }}){% endif %}
+    {% else %}
+      · automatique désactivée
+    {% endif %}
+  </p>
+  <div id="progress" hx-get="/progress" hx-trigger="every 3s" hx-swap="innerHTML" class="mt-2">
     {% include "_progress.html" %}
   </div>
 </div>

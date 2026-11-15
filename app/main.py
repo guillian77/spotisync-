@@ -76,6 +76,29 @@ def writable(path: str) -> bool:
         return False
 
 
+def sync_state() -> dict:
+    """Dernière synchronisation effective + prochaine échéance théorique."""
+    import datetime
+    row = db.q1("SELECT MAX(finished_at) f FROM runs WHERE kind LIKE 'sync:%' AND status='done'")
+    last = (row["f"] if row else "") or ""
+    enabled = db.setting("autosync_enabled", "0") == "1"
+    interval = db.setting_int("autosync_interval_min", 360)
+    nxt = ""
+    if enabled and last:
+        try:
+            dt = datetime.datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ")
+            nxt = (dt + datetime.timedelta(minutes=interval)).strftime("%d/%m %H:%M")
+        except ValueError:
+            nxt = ""
+    return {
+        "last": last[:16].replace("T", " "),
+        "enabled": enabled,
+        "interval": interval,
+        "next": nxt,
+        "interval_h": (interval // 60) if interval % 60 == 0 else round(interval / 60, 1),
+    }
+
+
 def render(request: Request, name: str, **ctx) -> HTMLResponse:
     ctx.setdefault("stats", stats())
     ctx.setdefault("account", account_state())
@@ -83,6 +106,7 @@ def render(request: Request, name: str, **ctx) -> HTMLResponse:
     ctx.setdefault("app_name", config.APP_NAME)
     ctx.setdefault("version", config.VERSION)
     ctx.setdefault("manager", manager.status())
+    ctx.setdefault("sync_state", sync_state())
     return templates.TemplateResponse(request, name, ctx)
 
 
