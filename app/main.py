@@ -63,6 +63,19 @@ def account_state() -> dict:
     }
 
 
+def writable(path: str) -> bool:
+    """Test d'écriture réel : un chemin de travers ne doit pas se découvrir à 900 téléchargements."""
+    try:
+        p = Path(path)
+        p.mkdir(parents=True, exist_ok=True)
+        probe = p / ".spotisync-write-test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
 def render(request: Request, name: str, **ctx) -> HTMLResponse:
     ctx.setdefault("stats", stats())
     ctx.setdefault("account", account_state())
@@ -211,7 +224,9 @@ def api_status():
 @app.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request, err: str = "", ok: str = ""):
     return render(request, "settings.html", err=err, ok=ok,
-                  formats=config.FORMATS, bitrates=config.BITRATES)
+                  formats=config.FORMATS, bitrates=config.BITRATES,
+                  writable_music=writable(db.setting("music_dir")),
+                  writable_config=writable(str(config.CONFIG_DIR)))
 
 
 @app.post("/settings")

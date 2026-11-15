@@ -125,6 +125,20 @@ SPOTISYNC_CONFIG=./data SPOTISYNC_MUSIC=./music .venv/bin/uvicorn app.main:app -
 Arborescence : `app/{config,db,spotify,sync,downloader,metadata,main}.py`,
 `app/templates/*.html` (Jinja2 + Tailwind/HTMX via CDN), `unraid/` (template + icône).
 
+## Dépannage
+
+- **Tous les téléchargements en erreur, message `PermissionError: [Errno 13] ... /root/.config`** :
+  spotDL écrit son cache dans `$HOME/.config`. L'entrypoint force désormais
+  `HOME=/config`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME` et `TMPDIR` sous `/config` ;
+  une image antérieure à la 0.2.1 doit être reconstruite.
+- **`/music` non inscriptible** : le conteneur ne fait jamais de `chown` sur ce volume.
+  Les réglages affichent « accessible en écriture » ou un avertissement rouge ; aligner
+  `PUID`/`PGID` sur le propriétaire du partage (99:100 par défaut sur Unraid).
+- **`400 redirect_uri: Insecure`** : Spotify exige HTTPS, ou `http://127.0.0.1:PORT` pour
+  une adresse de bouclage. `localhost` et les IP LAN sont refusés.
+- **`403 Active premium subscription required for the owner of the app`** : politique
+  Spotify, aucun contournement possible — utiliser l'onglet **Import** en attendant.
+
 ## Limites connues
 
 - Les titres locaux Spotify (`is_local`) et les fichiers sans ISRC échappent à la détection exacte.

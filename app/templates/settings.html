@@ -59,10 +59,16 @@
 
     <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
       <h2 class="text-sm font-medium text-white mb-3">Stockage</h2>
+      {% if not writable_config %}
+      <p class="mb-3 text-xs text-rose-400">Le dossier /config n'est pas accessible en écriture : la base et le cache spotDL ne peuvent pas être créés.</p>
+      {% endif %}
       <div class="grid sm:grid-cols-2 gap-3 text-sm">
         <label class="block">Dossier d'export
           <input name="music_dir" value="{{ cfg.music_dir }}"
                  class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 font-mono text-xs">
+          <span class="text-xs {{ 'text-emerald-400' if writable_music else 'text-rose-400' }}">
+            {{ 'accessible en écriture' if writable_music else 'ÉCRITURE IMPOSSIBLE — vérifiez PUID/PGID et les droits du partage' }}
+          </span>
         </label>
         <label class="block">Dossier de quarantaine
           <input name="quarantine_subdir" value="{{ cfg.quarantine_subdir }}"

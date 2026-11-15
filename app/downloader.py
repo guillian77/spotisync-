@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from . import db, metadata, spotify
-from .config import LOG_DIR, SPOTDL_BIN, STAGING_DIR
+from .config import CONFIG_DIR, LOG_DIR, SPOTDL_BIN, STAGING_DIR
 
 STATUS_PENDING = "pending"
 STATUS_QUEUED = "queued"
@@ -142,6 +142,48 @@ def _yt_dlp_args() -> list[str]:
     return ["--yt-dlp-args", f"--js-runtimes {runtime}"]
 
 
+def run_env() -> dict:
+    """Environnement explicite pour spotDL/yt-dlp : leur cache et leurs fichiers
+    temporaires doivent rester dans /config, jamais dans le HOME de root (uid 99
+    n'y a pas accès — cause d'un PermissionError sur /root/.config)."""
+    base = str(CONFIG_DIR)
+    env = dict(os.environ)
+    env["HOME"] = base
+    env["XDG_CONFIG_HOME"] = os.path.join(base, ".config")
+    env["XDG_CACHE_HOME"] = os.path.join(base, ".cache")
+    env["TMPDIR"] = os.path.join(base, "tmp")
+    for path in (env["XDG_CONFIG_HOME"], env["XDG_CACHE_HOME"], env["TMPDIR"],
+                 os.path.join(base, "staging")):
+        try:
+            os.makedirs(path, exist_ok=True)
+        except OSError:
+            pass
+    return env
+
+
+def error_excerpt(proc) -> str:
+    """Retient la ligne d'exception réelle plutôt que le début de la trace."""
+    import re
+    text = "\n".join(filter(None, [proc.stderr or "", proc.stdout or ""]))
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    for line in reversed(lines):
+        if re.search(r"\w*(Error|Exception)\b\s*:", line):
+            return line[:400]
+    return " | ".join(lines[-3:])[:400] or "Aucun fichier produit"
+
+
+def log_failure(track: dict, proc) -> None:
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        with open(LOG_DIR / "download-errors.log", "a", encoding="utf-8") as fh:
+            fh.write(f"\n=== {time.strftime('%F %T')} | {track.get('spotify_id')} | "
+                     f"{track.get('artists')} — {track.get('title')} | code {proc.returncode}\n")
+            fh.write((proc.stderr or "")[-4000:])
+            fh.write((proc.stdout or "")[-2000:])
+    except OSError:
+        pass
+
+
 def download_one(track: dict) -> tuple[str, dict | str]:
     url = track.get("url") or ""
     if not url and track.get("spotify_id"):
@@ -157,19 +199,13 @@ def download_one(track: dict) -> tuple[str, dict | str]:
 
     cmd = [SPOTDL_BIN, "download", url,
            "--output", "{title}", "--format", fmt, "--bitrate", bitrate,
-           "--overwrite", "force", "--simple-tui", "--print-errors",
-           "--lyrics", "none"] + _yt_dlp_args()
-    # --lyrics none n'existe pas partout : on l'ignore en cas d'échec d'arguments
-    proc = subprocess.run(cmd, cwd=staging, capture_output=True, text=True, timeout=900)
+           "--overwrite", "force", "--simple-tui", "--print-errors"] + _yt_dlp_args()
+    proc = subprocess.run(cmd, cwd=staging, capture_output=True, text=True,
+                          timeout=900, env=run_env())
     audio = metadata.find_audio(staging)
     if audio is None:
-        retry_cmd = [c for c in cmd if c not in ("--lyrics", "none")]
-        proc = subprocess.run(retry_cmd, cwd=staging, capture_output=True,
-                              text=True, timeout=900)
-        audio = metadata.find_audio(staging)
-    if audio is None:
-        tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-3:]
-        return STATUS_ERROR, " | ".join(tail) or "Aucun fichier produit"
+        log_failure(track, proc)
+        return STATUS_ERROR, error_excerpt(proc)
 
     info = metadata.read_tags(audio)
     if not info.get("duration_s"):
