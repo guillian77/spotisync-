@@ -143,6 +143,15 @@ Champ de recherche sur le tableau de bord (et page `/search`), avec détection a
 | ID (22 car.) ou URL de playlist Spotify | lecture de la page d'intégration publique — **sans API ni Premium** — puis import ; limité aux **50 premiers titres** |
 | ID (11 car.) ou URL de vidéo YouTube | téléchargement de **cette vidéo exacte** via yt-dlp, avec option « remplacer un titre en échec » (les tags Spotify priment) |
 
+Un téléchargement YouTube autonome crée une entrée dans la bibliothèque (identifiant
+`yt:<video>`), et **« Indexer le dossier musique »** adopte les fichiers présents sur le disque
+qui n'ont pas encore de fiche : ils deviennent visibles dans la bibliothèque.
+
+Anti-doublon à trois niveaux pour ces ajouts : même chemin déjà référencé, même ISRC, ou même
+titre/artiste avec une durée à ±5 s (dans ce cas le fichier est rattaché au lieu de créer une
+seconde fiche). Et retélécharger une vidéo déjà présente est refusé **avant** toute
+consommation de bande passante.
+
 Les playlists YouTube ne sont pas gérées (message explicite). La lecture d'une playlist Spotify
 passe par `open.spotify.com/embed` : pas de pagination possible, donc pour une grande playlist
 utilisez Exportify.

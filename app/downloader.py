@@ -516,8 +516,50 @@ def scan_library() -> dict:
                        info.get("duration_s"), info.get("bitrate"), info.get("fmt"), key,
                        time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())))
             added += 1
-    db.run_finish(run_id, "done", f"{found} fichiers, {added} indexés")
-    return {"found": found, "indexed": added}
+    adopted = _adopt_orphan_files()
+    db.run_finish(run_id, "done",
+                  f"{found} fichiers, {added} indexés, {adopted} ajoutés à la bibliothèque")
+    return {"found": found, "indexed": added, "adopted": adopted}
+
+
+def _adopt_orphan_files() -> int:
+    """Crée une ligne de bibliothèque pour chaque fichier disque sans piste associée
+    (téléchargement YouTube autonome, fichiers déposés à la main).
+
+    Triple garde anti-doublon : même chemin déjà référencé, même ISRC, ou même
+    titre/artiste avec une durée à ±5 s. Un scan répété n'ajoute donc jamais rien."""
+    adopted = 0
+    for row in db.q("SELECT * FROM files WHERE quarantined=0"):
+        if db.q1("SELECT 1 FROM tracks WHERE file_path=? LIMIT 1", (row["path"],)):
+            continue
+        isrc = (row["isrc"] or "").strip().upper()
+        if isrc and db.q1("SELECT 1 FROM tracks WHERE UPPER(isrc)=? LIMIT 1", (isrc,)):
+            continue
+        key = metadata.norm_key(row["title"] or "", row["artists"] or "")
+        duration_s = float(row["duration_s"] or 0)
+        twin = None
+        if key:
+            twin = db.q1(
+                "SELECT id, duration_ms FROM tracks WHERE key_norm=? AND "
+                "(? = 0 OR ABS(duration_ms/1000.0 - ?) <= 5) LIMIT 1",
+                (key, duration_s, duration_s))
+        if twin:
+            # piste connue mais fichier non référencé : on rattache plutôt que dupliquer
+            db.qx("UPDATE tracks SET file_path=?, file_size=? WHERE id=? AND "
+                  "(file_path IS NULL OR file_path='')",
+                  (row["path"], row["size"], twin["id"]))
+            continue
+        db.qx(
+            "INSERT INTO tracks(spotify_id,isrc,title,artists,album,album_artist,"
+            "disc_no,track_no,release_date,duration_ms,explicit,popularity,cover_url,url,"
+            "added_at,status,file_path,file_size,wanted,key_norm,updated_at) "
+            "VALUES(NULL,?,?,?,?,?,1,1,'',?,0,0,'','','','done',?,?,0,?,?)",
+            (row["isrc"] or "", row["title"] or "Sans titre", row["artists"] or "",
+             row["album"] or "", row["artists"] or "", int((row["duration_s"] or 0) * 1000),
+             row["path"], row["size"], key,
+             time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())))
+        adopted += 1
+    return adopted
 
 
 def duplicates(threshold: int | None = None) -> list[dict]:
@@ -674,6 +716,13 @@ def download_youtube(video: str, track: dict | None = None) -> tuple[str, dict |
         yt_uploader = lines[2] if len(lines) > 2 else ""
         yt_duration = float(lines[3]) if len(lines) > 3 and lines[3].replace(".", "").isdigit() else 0.0
 
+        # déjà téléchargée ? on s'arrête avant de consommer de la bande passante
+        if track is None and video_id:
+            done = db.q1("SELECT file_path FROM tracks WHERE spotify_id=? AND status='done' "
+                         "AND file_path IS NOT NULL", (f"yt:{video_id}",))
+            if done and Path(done["file_path"]).exists():
+                return STATUS_DUPE, f"doublon de {done['file_path']}"
+
         if manager.stopping or manager._stop.is_set():
             return STATUS_STOPPED, "interrompu par l'utilisateur"
 
@@ -736,6 +785,7 @@ def download_youtube(video: str, track: dict | None = None) -> tuple[str, dict |
         metadata.write_tags(target, info)
         return STATUS_DONE, {"path": str(target), "size": target.stat().st_size,
                              "source": "youtube", "video": video_id,
-                             "match": yt_title, "duration_s": yt_duration}
+                             "match": yt_title, "duration_s": yt_duration,
+                             "info": info}
     finally:
         shutil.rmtree(staging, ignore_errors=True)

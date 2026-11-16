@@ -398,8 +398,26 @@ def search_page(request: Request, q: str = ""):
 def search_youtube(video: str = Form(...), track_id: str = Form("")):
     track = db.q1("SELECT * FROM tracks WHERE id=?", (int(track_id),)) if track_id.strip() else None
     status, detail = downloader.download_youtube(video, dict(track) if track else None)
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    if track is None and status == downloader.STATUS_DONE:
+        # téléchargement autonome : sans ligne en base, il n'apparaîtrait pas dans la bibliothèque
+        info = detail.get("info") or {}
+        db.qx(
+            "INSERT INTO tracks(spotify_id,title,artists,album,album_artist,disc_no,track_no,"
+            "release_date,duration_ms,url,status,file_path,file_size,wanted,key_norm,"
+            "updated_at) VALUES(?,?,?,?,?,1,1,'',?,?,'done',?,?,0,?,?) "
+            "ON CONFLICT(spotify_id) DO UPDATE SET status='done', file_path=excluded.file_path,"
+            " file_size=excluded.file_size, error=NULL, updated_at=excluded.updated_at",
+            (f"yt:{detail.get('video', '')}",
+             info.get("title") or detail.get("match") or "Sans titre",
+             info.get("artist") or "",
+             info.get("album") or "",
+             info.get("album_artist") or info.get("artist") or "",
+             int(float(info.get("duration_s") or 0) * 1000),
+             f"https://www.youtube.com/watch?v={detail.get('video', '')}",
+             detail["path"], detail["size"],
+             metadata.norm_key(info.get("title") or "", info.get("artist") or ""), now))
     if track is not None:
-        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         if status == downloader.STATUS_DONE:
             db.qx("UPDATE tracks SET status='done', file_path=?, file_size=?, error=NULL,"
                   " updated_at=? WHERE id=?",
