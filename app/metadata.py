@@ -12,6 +12,15 @@ _FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _FEAT = re.compile(r"\s*[\(\[](feat\.?|ft\.?|featuring|avec|prod\.)[^\)\]]*[\)\]]", re.I)
 
 
+_PROMO = re.compile(r"[\[\]\(\)]\s*(?:official|clip|video|oficial|audio|lyrics?|hd|hq|4k|"
+                    r"remaster(?:ed)?|explicit|visualizer|live)[^\]\)]*[\]\)]", re.I)
+
+
+def clean_title(raw: str) -> str:
+    """Retire les mentions promotionnelles d'un titre YouTube : « (Video Oficial) », « [HD] »…"""
+    return re.sub(r"\s+", " ", _PROMO.sub("", raw or "")).strip(" -")
+
+
 def sanitize(name: str, max_len: int = 120) -> str:
     name = (name or "").strip()
     name = name.replace(":", " - ")          # « Album : sous-titre » → « Album - sous-titre »

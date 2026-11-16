@@ -389,8 +389,10 @@ def search_page(request: Request, q: str = ""):
         result["error_tracks"] = [dict(r) for r in db.q(
             "SELECT id, title, artists FROM tracks WHERE status='error' ORDER BY id LIMIT 25")]
     elif kind == "youtube_playlist":
-        result["error"] = ("Les playlists YouTube ne sont pas encore gérées : "
-                           "collez le lien d'une vidéo précise.")
+        try:
+            result.update(yt_playlist=downloader.list_youtube_playlist(value))
+        except Exception as exc:  # noqa: BLE001 - yt-dlp réseau, playlist privée, ID invalide
+            result["error"] = f"Playlist YouTube illisible : {exc}"
     return render(request, "search.html", q=q, result=result)
 
 
@@ -441,6 +443,36 @@ def search_youtube(video: str = Form(...), track_id: str = Form("")):
     return RedirectResponse("/search?q=" + quote_plus(str(detail.get("video", video))
                                                       if isinstance(detail, dict) else video)
                             + "&msg=" + quote_plus(message), status_code=303)
+
+
+@app.post("/search/yt-playlist")
+def search_yt_playlist(url: str = Form(...)):
+    try:
+        info = downloader.list_youtube_playlist(url)
+    except Exception as exc:  # noqa: BLE001
+        return RedirectResponse("/search?q=" + quote_plus(url) + "&err=" + quote_plus(str(exc)),
+                                status_code=303)
+    entries = info["entries"]
+    if not entries:
+        return RedirectResponse("/search?q=" + quote_plus(url)
+                                + "&err=" + quote_plus("Playlist vide"), status_code=303)
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    added = 0
+    for e in entries:
+        sid = f"yt:{e['id']}"
+        if db.q1("SELECT 1 FROM tracks WHERE spotify_id=?", (sid,)):
+            continue
+        db.qx(
+            "INSERT INTO tracks(spotify_id,title,artists,album,disc_no,track_no,duration_ms,"
+            "url,status,wanted,key_norm,updated_at) VALUES(?,?,?,?,1,1,?,?,'pending',1,?,?)",
+            (sid, metadata.clean_title(e["title"]) or e["id"], "", info["title"],
+             e["duration_ms"],
+             f"https://www.youtube.com/watch?v={e['id']}",
+             metadata.norm_key(metadata.clean_title(e["title"]), ""), now))
+        added += 1
+    msg = (f"{added} vidéo(s) ajoutée(s) depuis « {info['title']} » — "
+           f"lancez le téléchargement depuis le tableau de bord")
+    return RedirectResponse("/?msg=" + quote_plus(msg), status_code=303)
 
 
 @app.post("/search/spotify")

@@ -4,7 +4,8 @@
 <div class="max-w-4xl">
   <h1 class="text-xl font-semibold text-white mb-1">Recherche</h1>
   <p class="text-sm text-slate-400 mb-4">
-    Nom d'un titre ou d'une playlist, identifiant/URL de playlist Spotify, ou lien d'une vidéo YouTube.
+    Nom d'un titre ou d'une playlist, identifiant/URL de playlist Spotify, lien d'une vidéo
+    ou d'une playlist YouTube.
   </p>
 
   <form method="get" action="/search" class="flex gap-2 mb-6">
@@ -53,6 +54,31 @@
         Télécharger cette vidéo
       </button>
     </form>
+  </div>
+
+  {% elif result.kind == 'youtube_playlist' and result.yt_playlist %}
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <div class="text-white font-medium mb-1 truncate">{{ result.yt_playlist.title }}</div>
+    <div class="text-xs text-slate-500 mb-3">
+      {{ result.yt_playlist.entries|length }} vidéo(s) détectée(s){% if result.yt_playlist.truncated %} · limité à 200{% endif %}
+    </div>
+    <form method="post" action="/search/yt-playlist" class="mb-3">
+      <input type="hidden" name="url" value="{{ q }}">
+      <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">
+        Ajouter ces {{ result.yt_playlist.entries|length }} vidéos à télécharger
+      </button>
+    </form>
+    <ol class="divide-y divide-slate-800/70 text-sm list-decimal list-inside">
+      {% for v in result.yt_playlist.entries[:60] %}
+      <li class="py-1 flex justify-between gap-3">
+        <span class="truncate text-slate-200">{{ v.title }}</span>
+        <span class="text-xs text-slate-600 shrink-0">{{ '%d:%02d'|format((v.duration_ms or 0)//60000, ((v.duration_ms or 0)//1000)%60) }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% if result.yt_playlist.entries|length > 60 %}
+    <p class="text-xs text-slate-500 mt-2">… et {{ result.yt_playlist.entries|length - 60 }} autre(s).</p>
+    {% endif %}
   </div>
 
   {% elif result.kind == 'spotify_playlist' and result.playlist %}

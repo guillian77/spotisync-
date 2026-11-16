@@ -143,7 +143,11 @@ class DownloadManager:
               (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), track_id))
         self.current.append(f"{row['artists']} — {row['title']}")
         try:
-            outcome = download_one(dict(row))
+            sid = str(row["spotify_id"] or "")
+            if sid.startswith("yt:"):
+                outcome = download_youtube(sid[3:], dict(row))
+            else:
+                outcome = download_one(dict(row))
         except Exception as exc:  # noqa: BLE001 - on journalise tout
             outcome = ("error", str(exc))
             with open(LOG_DIR / "download-errors.log", "a", encoding="utf-8") as fh:
@@ -669,7 +673,7 @@ def _run(cmd: list[str], cwd: Path, timeout: int = 600):
 
 def _split_youtube_title(raw: str) -> tuple[str, str]:
     """« Artiste - Titre (Official Video) » -> (« Artiste », « Titre »)."""
-    clean = _PROMO.sub("", raw or "").strip(" -")
+    clean = metadata.clean_title(raw)
     if " - " in clean:
         artist, title = clean.split(" - ", 1)
         return artist.strip(), title.strip()
@@ -797,3 +801,42 @@ def download_youtube(video: str, track: dict | None = None) -> tuple[str, dict |
                              "info": info}
     finally:
         shutil.rmtree(staging, ignore_errors=True)
+
+def list_youtube_playlist(url: str, limit: int = 200) -> dict:
+    """Liste les vidéos d'une playlist YouTube (sans rien télécharger)."""
+    ref = url.strip()
+    if ref.startswith("http"):
+        target = ref
+    else:
+        target = f"https://www.youtube.com/playlist?list={ref}"
+    staging = Path(STAGING_DIR) / "yt-list"
+    staging.mkdir(parents=True, exist_ok=True)
+    runtime = js_runtime()
+    js_args = ["--js-runtimes", runtime] if runtime else []
+    code_, out, err = _run(
+        [_ytdlp_bin(), "--flat-playlist", "--no-warnings", *js_args, "--print",
+         "%(playlist_title)s\t%(id)s\t%(title)s\t%(duration)s", target],
+        staging, timeout=180)
+    if code_ != 0 and not (out or "").strip():
+        detail = (err or out or "").strip().splitlines()
+        raise RuntimeError(detail[-1][:300] if detail else "yt-dlp a échoué")
+
+    entries, title = [], ""
+    for line in (out or "").splitlines():
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        pl_title, vid, vtitle = parts[0], parts[1], parts[2]
+        duration = parts[3] if len(parts) > 3 else ""
+        if pl_title and not title:
+            title = pl_title
+        if not vid or vid == "NA":
+            continue
+        entries.append({
+            "id": vid,
+            "title": vtitle,
+            "duration_ms": int(float(duration) * 1000) if duration.replace(".", "").isdigit() else 0,
+        })
+        if len(entries) >= limit:
+            break
+    return {"title": title or "Playlist YouTube", "entries": entries, "truncated": len(entries) >= limit}

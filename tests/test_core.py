@@ -53,3 +53,12 @@ def test_similarity_order_insensitive():
     b = metadata.norm_key("Boca Cala", "SDM")
     assert metadata.similarity(a, b) > 85
     assert metadata.similarity(a, metadata.norm_key("Autre chose", "Personne")) < 40
+
+
+def test_clean_title_strips_promo_tags():
+    assert metadata.clean_title("BELLAKEO (Video Oficial) - Peso Pluma") == "BELLAKEO - Peso Pluma"
+    assert metadata.clean_title("Arcángel - FN8 ( Video Lyric )") == "Arcángel - FN8"
+    assert metadata.clean_title("Stayin Alive [HD]") == "Stayin Alive"
+    assert metadata.clean_title("Titre (Clip officiel)") == "Titre"
+    assert metadata.clean_title("Rien à nettoyer") == "Rien à nettoyer"
+    assert metadata.clean_title("") == ""
