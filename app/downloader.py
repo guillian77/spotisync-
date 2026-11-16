@@ -1,6 +1,7 @@
 """Téléchargement via spotDL : staging, dédoublonnage, rangement, tags."""
 import json
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -253,76 +254,196 @@ def _kill_tree(proc, grace: float = 5.0) -> None:
             continue
 
 
-def download_one(track: dict) -> tuple[str, dict | str]:
-    url = track.get("url") or ""
-    if not url and track.get("spotify_id"):
-        url = f"https://open.spotify.com/track/{track['spotify_id']}"
-    if not url:
-        return STATUS_ERROR, "URL Spotify absente"
+LIVE_DEFAULT = "live,concert,en concert,in concert,session,rehearsal,karaoke,instrumental"
 
-    staging = Path(STAGING_DIR) / str(track["spotify_id"])
-    shutil.rmtree(staging, ignore_errors=True)
-    staging.mkdir(parents=True, exist_ok=True)
-    fmt = db.setting("audio_format", "mp3")
-    bitrate = db.setting("audio_bitrate", "320k")
 
-    cmd = [SPOTDL_BIN, "download", url,
+def _lookup_failure(message: str) -> bool:
+    """Vrai si l'échec vient de la résolution Spotify interne à spotDL (SpotipyFree),
+    et non de YouTube : dans ce cas inutile d'insister sur l'URL, une requête texte marche."""
+    m = (message or "").lower()
+    return any(k in m for k in ("keyerror: 'uri'", "no results", "could not get song info",
+                                "invalid json", "songerror"))
+
+
+def _result_name(stdout: str) -> str:
+    m = re.search(r'Downloaded\s+"([^"]+)"', stdout or "")
+    return m.group(1) if m else ""
+
+
+def _reject_keywords() -> list[str]:
+    try:
+        raw = db.setting("reject_keywords", LIVE_DEFAULT) or ""
+    except Exception:  # noqa: BLE001 - fonction pure : utilisable hors base (tests, outils)
+        raw = LIVE_DEFAULT
+    return [k.strip().lower() for k in raw.split(",") if k.strip()]
+
+
+def _has_keyword(text: str, keyword: str) -> bool:
+    """Correspondance sur mot entier : « live » ne doit pas matcher « alive »."""
+    return re.search(r"(?<![a-z0-9])" + re.escape(keyword) + r"(?![a-z0-9])", text) is not None
+
+
+def _alternate_version(result_name: str, title: str) -> str:
+    """Repère une version live/concert là où le titre Spotify n'en annonce pas."""
+    if not result_name:
+        return ""
+    name = metadata.strip_accents(result_name.lower())
+    expected = metadata.strip_accents((title or "").lower())
+    for kw in _reject_keywords():
+        if _has_keyword(name, kw) and not _has_keyword(expected, kw):
+            return kw
+    return ""
+
+
+def _duration_problem(actual_s: float, expected_ms: int) -> tuple[bool, float]:
+    if not actual_s or not expected_ms:
+        return False, 0.0
+    expected = expected_ms / 1000.0
+    delta = abs(actual_s - expected)
+    try:
+        configured = db.setting_int("duration_tolerance_s", 8)
+    except Exception:  # noqa: BLE001
+        configured = 8
+    tolerance = max(configured, expected * 0.04)
+    return delta > tolerance, round(delta, 1)
+
+
+def _candidates(track: dict) -> list[tuple[str, str]]:
+    """Ordre d'essai : URL Spotify, puis recherche texte (contourne SpotipyFree cassé)."""
+    out: list[tuple[str, str]] = []
+    url = track.get("url") or (
+        f"https://open.spotify.com/track/{track['spotify_id']}" if track.get("spotify_id") else "")
+    if url:
+        out.append(("spotify", url))
+    artists = metadata.split_artists(track.get("artists") or "")
+    title = (track.get("title") or "").strip()
+    if title:
+        base = f"{artists[0]} - {title}" if artists else title
+        out.append(("recherche", base))
+        album = (track.get("album") or "").strip()
+        if album:
+            out.append(("recherche+album", f"{base} {album}"))
+    return out
+
+
+def _run_spotdl(query: str, staging: Path, fmt: str, bitrate: str):
+    """Exécute spotDL une fois. Renvoie (audio|None, stdout, stderr, code, interrompu)."""
+    providers = [p for p in (db.setting("audio_providers", "youtube-music youtube") or "").split()
+                 if p]
+    cmd = [SPOTDL_BIN, "download", query,
            "--output", "{title}", "--format", fmt, "--bitrate", bitrate,
-           "--overwrite", "force", "--simple-tui", "--print-errors"] + _yt_dlp_args()
-    from types import SimpleNamespace
+           "--overwrite", "force", "--simple-tui", "--print-errors"]
+    if providers:
+        cmd += ["--audio", *providers]
+    cmd += _yt_dlp_args()
 
+    from types import SimpleNamespace
     proc = subprocess.Popen(cmd, cwd=staging, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, env=run_env(),
-                            start_new_session=True)  # groupe dédié : yt-dlp/ffmpeg tués avec lui
+                            start_new_session=True)
     manager.register(proc)
     try:
         out, err = proc.communicate(timeout=900)
+        code = proc.returncode
     except subprocess.TimeoutExpired:
         _kill_tree(proc)
         out, err = proc.communicate()
-        manager.unregister(proc)
-        log_failure(track, SimpleNamespace(returncode=-1, stdout=out, stderr="délai dépassé"))
-        return STATUS_ERROR, "Délai dépassé (15 min)"
+        code = -1
     finally:
         manager.unregister(proc)
 
-    if manager.stopping or manager._stop.is_set():
+    interrupted = manager.stopping or manager._stop.is_set()
+    audio = None if interrupted else metadata.find_audio(staging)
+    if audio is None and not interrupted and code == -1:
+        err = (err or "") + "\ndélai dépassé"
+    return audio, out, err, code, interrupted
+
+
+def download_one(track: dict) -> tuple[str, dict | str]:
+    staging = Path(STAGING_DIR) / str(track.get("spotify_id") or "unknown")
+    fmt = db.setting("audio_format", "mp3")
+    bitrate = db.setting("audio_bitrate", "320k")
+    reasons: list[str] = []
+
+    for kind, query in _candidates(track):
         shutil.rmtree(staging, ignore_errors=True)
-        return STATUS_STOPPED, "interrompu par l'utilisateur"
+        staging.mkdir(parents=True, exist_ok=True)
+        audio, out, err, code, interrupted = _run_spotdl(query, staging, fmt, bitrate)
+        if interrupted:
+            shutil.rmtree(staging, ignore_errors=True)
+            return STATUS_STOPPED, "interrompu par l'utilisateur"
+        if audio is None:
+            from types import SimpleNamespace
+            result = SimpleNamespace(returncode=code, stdout=out, stderr=err)
+            message = error_excerpt(result)
+            reasons.append(f"{kind} : {message}")
+            if kind == "spotify" and _lookup_failure(message):
+                log_failure(track, result)
+            continue
 
-    result = SimpleNamespace(returncode=proc.returncode, stdout=out, stderr=err)
-    audio = metadata.find_audio(staging)
-    if audio is None:
-        log_failure(track, result)
-        return STATUS_ERROR, error_excerpt(result)
+        # --- contrôle du candidat : durée et version live -------------------
+        name = _result_name(out)
+        keyword = _alternate_version(name, track.get("title") or "")
+        if keyword:
+            reasons.append(f"{kind} : « {name} » semble une version {keyword}")
+            shutil.rmtree(staging, ignore_errors=True)
+            continue
+        info = metadata.read_tags(audio)
+        if not info.get("duration_s"):
+            info.update(metadata.probe(audio))
+        too_far, delta = _duration_problem(info.get("duration_s") or 0,
+                                          int(track.get("duration_ms") or 0))
+        if too_far:
+            reasons.append(f"{kind} : durée {delta:.0f} s d'écart")
+            shutil.rmtree(staging, ignore_errors=True)
+            continue
 
-    info = metadata.read_tags(audio)
-    if not info.get("duration_s"):
-        info.update(metadata.probe(audio))
-    info["artist"] = metadata.normalize_artists(info.get("artist", ""), track.get("artists", ""))
-    if not info.get("album_artist"):
-        info["album_artist"] = info["artist"]
-    if not info.get("title"):
-        info["title"] = track["title"]
-    if not info.get("album"):
-        info["album"] = track.get("album") or ""
-    info["year"] = (info.get("year") or (track.get("release_date") or ""))[:4]
-    info["track"] = info.get("track") or track.get("track_no") or 1
-    info["isrc"] = info.get("isrc") or track.get("isrc") or ""
+        # --- tags : la base fait foi (Spotify), YouTube ne fournit que l'audio
+        if db.setting("trust_db_metadata", "1") == "1":
+            info["title"] = track.get("title") or info.get("title") or ""
+            info["artist"] = (metadata.format_artists(track.get("artists") or "")
+                              or info.get("artist") or "")
+            info["album"] = track.get("album") or info.get("album") or ""
+            info["album_artist"] = (metadata.format_artists(
+                track.get("album_artist") or track.get("artists") or "")
+                or info.get("album_artist") or info["artist"])
+            info["track"] = track.get("track_no") or info.get("track") or 1
+            info["disc"] = track.get("disc_no") or info.get("disc") or 1
+            info["year"] = (track.get("release_date") or info.get("year") or "")[:4]
+            info["isrc"] = track.get("isrc") or info.get("isrc") or ""
+        else:
+            info["artist"] = metadata.normalize_artists(
+                info.get("artist", ""), track.get("artists", ""))
+            if not info.get("album_artist"):
+                info["album_artist"] = info["artist"]
+            if not info.get("title"):
+                info["title"] = track.get("title") or ""
+            if not info.get("album"):
+                info["album"] = track.get("album") or ""
+            info["year"] = (info.get("year") or (track.get("release_date") or ""))[:4]
+            info["track"] = info.get("track") or track.get("track_no") or 1
+            info["isrc"] = info.get("isrc") or track.get("isrc") or ""
 
-    dupe = find_duplicate(track, info)
-    if dupe:
+        dupe = find_duplicate(track, info)
+        if dupe:
+            shutil.rmtree(staging, ignore_errors=True)
+            return STATUS_DUPE, f"doublon de {dupe}"
+
+        rel = metadata.build_relpath(db.setting("output_template"), info)
+        target = Path(db.setting("music_dir")) / f"{rel}.{fmt}"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target = metadata.unique_path(target)
+        shutil.move(str(audio), str(target))
         shutil.rmtree(staging, ignore_errors=True)
-        return STATUS_DUPE, f"doublon de {dupe}"
+        metadata.write_tags(target, info)
+        return STATUS_DONE, {"path": str(target), "size": target.stat().st_size,
+                             "source": kind, "match": name,
+                             "rejected": reasons[:]}
 
-    rel = metadata.build_relpath(db.setting("output_template"), info)
-    target = Path(db.setting("music_dir")) / f"{rel}.{fmt}"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target = metadata.unique_path(target)
-    shutil.move(str(audio), str(target))
     shutil.rmtree(staging, ignore_errors=True)
-    metadata.write_tags(target, info)
-    return STATUS_DONE, {"path": str(target), "size": target.stat().st_size}
+    if not reasons:
+        return STATUS_ERROR, "Aucun candidat exploitable"
+    return STATUS_ERROR, ("Correspondance refusée — " + " | ".join(reasons[-2:]))[:400]
 
 
 def find_duplicate(track: dict, info: dict) -> str | None:

@@ -132,6 +132,28 @@ SPOTISYNC_CONFIG=./data SPOTISYNC_MUSIC=./music .venv/bin/uvicorn app.main:app -
 Arborescence : `app/{config,db,spotify,sync,downloader,metadata,main}.py`,
 `app/templates/*.html` (Jinja2 + Tailwind/HTMX via CDN), `unraid/` (template + icône).
 
+## Correspondance audio et garde-fous
+
+spotDL peut échouer sur la résolution Spotify (bug de son client anonyme `SpotipyFree` :
+`KeyError: 'uri'`, `LookupError: No results`) alors que YouTube Music fonctionne très bien.
+L'app enchaîne donc les candidats dans cet ordre, et **recommence en recherche texte** dès que
+la résolution Spotify échoue :
+
+1. URL Spotify de la piste
+2. `Artiste - Titre`
+3. `Artiste - Titre Album`
+
+Chaque candidat téléchargé est accepté ou refusé avant d'être rangé :
+
+- **durée** : écart avec la durée Spotify > 8 s (ou 4 %) → refusé (`duration_tolerance_s`)
+- **versions live/concert** : si le résultat contient `live`, `concert`, `session`, `karaoke`…
+  alors que le titre Spotify ne l'annonce pas → refusé (`reject_keywords`, correspondance sur
+  mot entier : `alive` ne déclenche pas `live`)
+- épuisement des candidats → statut `error` avec le motif exact des refus, rien n'est rangé
+
+Les tags écrits viennent **de Spotify, pas de YouTube** (`trust_db_metadata`) : titre, artistes,
+album, album_artist, numéro de piste, année, ISRC. YouTube ne fournit que l'audio et la pochette.
+
 ## Dépannage
 
 - **Tous les téléchargements en erreur, message `PermissionError: [Errno 13] ... /root/.config`** :
@@ -145,6 +167,9 @@ Arborescence : `app/{config,db,spotify,sync,downloader,metadata,main}.py`,
   template, elle ne convient qu'aux partages possédés par `nobody`. Pour un utilisateur nommé,
   mettre son UID (`id -u guillian` → 1000) et `PGID=100`, **recréer le conteneur**, puis
   `chown -R 1000:100 /mnt/user/<partage>`. Vérification : `docker exec Spotisync id app`.
+- **Tous les titres en `KeyError: 'uri'` ou `LookupError: No results`** : le client Spotify
+  anonyme de spotDL est cassé ou limité ; la 0.7.0 bascule automatiquement en recherche texte.
+  Si l'erreur persiste, vérifiez `spotdl download "Artiste - Titre"` en direct dans le conteneur.
 - **`Some YouTube downloads require Deno` / `YT-DLP download error`** : yt-dlp a besoin d'un
   runtime JS récent pour les challenges de YouTube ; le paquet Debian `nodejs` est trop ancien.
   L'image installe **Deno** (runtime par défaut) et le code retombe sur `node` s'il est absent.

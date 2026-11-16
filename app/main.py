@@ -335,13 +335,14 @@ async def settings_save(request: Request):
     keys = ["spotify_client_id", "spotify_client_secret", "spotify_redirect_uri",
             "music_dir", "output_template", "audio_format", "audio_bitrate",
             "threads", "js_runtime", "overwrite_mode", "dupe_threshold",
-            "quarantine_subdir", "autosync_interval_min", "discord_webhook"]
+            "quarantine_subdir", "autosync_interval_min", "discord_webhook",
+            "audio_providers", "reject_keywords", "duration_tolerance_s"]
     for k in keys:
         if k in form:
             db.set_setting(k, str(form[k]).strip())
     for k in ("normalize_artists", "autosync_enabled", "autosync_download",
               "notify_download_done", "notify_download_errors", "notify_autosync",
-              "notify_resume", "resume_on_start"):
+              "notify_resume", "resume_on_start", "trust_db_metadata"):
         db.set_setting(k, "1" if form.get(k) else "0")
     return RedirectResponse("/settings?ok=Réglages+enregistrés", status_code=303)
 

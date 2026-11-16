@@ -30,6 +30,12 @@ def split_artists(value: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
+def format_artists(value: str) -> str:
+    """« GIMS, Damso » -> « GIMS; Damso » (séparateur unique pour les lecteurs)."""
+    parts = split_artists(value)
+    return "; ".join(parts) if parts else (value or "").strip()
+
+
 def normalize_artists(tag_value: str, expected: str = "") -> str:
     """spotDL écrit « GIMS/Damso » ; on ne convertit que si le découpage
     correspond au nombre d'artistes attendus (évite de casser AC/DC)."""
