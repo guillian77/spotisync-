@@ -147,6 +147,10 @@ Un téléchargement YouTube autonome crée une entrée dans la bibliothèque (id
 `yt:<video>`), et **« Indexer le dossier musique »** adopte les fichiers présents sur le disque
 qui n'ont pas encore de fiche : ils deviennent visibles dans la bibliothèque.
 
+Le refus de retéléchargement d'une vidéo vérifie **la base et le disque** : un fichier présent
+sans fiche (téléchargé par une version antérieure) est détecté par le chemin cible calculé, donc
+plus de `(2).mp3` même si la fiche manque.
+
 Anti-doublon à trois niveaux pour ces ajouts : même chemin déjà référencé, même ISRC, ou même
 titre/artiste avec une durée à ±5 s (dans ce cas le fichier est rattaché au lieu de créer une
 seconde fiche). Et retélécharger une vidéo déjà présente est refusé **avant** toute

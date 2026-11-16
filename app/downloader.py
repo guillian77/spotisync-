@@ -716,12 +716,37 @@ def download_youtube(video: str, track: dict | None = None) -> tuple[str, dict |
         yt_uploader = lines[2] if len(lines) > 2 else ""
         yt_duration = float(lines[3]) if len(lines) > 3 and lines[3].replace(".", "").isdigit() else 0.0
 
-        # déjà téléchargée ? on s'arrête avant de consommer de la bande passante
+        if track:
+            info = {
+                "title": track.get("title") or yt_title,
+                "artist": metadata.format_artists(track.get("artists") or "") or yt_uploader,
+                "album": track.get("album") or "",
+                "album_artist": metadata.format_artists(
+                    track.get("album_artist") or track.get("artists") or "") or yt_uploader,
+                "track": track.get("track_no") or 1,
+                "disc": track.get("disc_no") or 1,
+                "year": (track.get("release_date") or "")[:4],
+                "isrc": track.get("isrc") or "",
+            }
+        else:
+            artist, title = _split_youtube_title(yt_title)
+            info = {"title": title, "artist": artist or yt_uploader,
+                    "album": "", "album_artist": artist or yt_uploader,
+                    "track": 1, "disc": 1, "year": "", "isrc": ""}
+
+        # --- refus AVANT téléchargement : base, puis disque -------------------
         if track is None and video_id:
             done = db.q1("SELECT file_path FROM tracks WHERE spotify_id=? AND status='done' "
                          "AND file_path IS NOT NULL", (f"yt:{video_id}",))
             if done and Path(done["file_path"]).exists():
                 return STATUS_DUPE, f"doublon de {done['file_path']}"
+        if track is None:
+            rel_preview = metadata.build_relpath(db.setting("output_template"), info)
+            root = Path(db.setting("music_dir"))
+            for pattern in (rel_preview + ".*", rel_preview + " (*).*"):
+                existing = [p for p in root.glob(pattern) if p.is_file()]
+                if existing:
+                    return STATUS_DUPE, f"doublon de {existing[0]}"
 
         if manager.stopping or manager._stop.is_set():
             return STATUS_STOPPED, "interrompu par l'utilisateur"
@@ -751,26 +776,9 @@ def download_youtube(video: str, track: dict | None = None) -> tuple[str, dict |
         if not converted.exists():
             return STATUS_ERROR, ("ffmpeg : " + (err or "").strip().splitlines()[-1])[:300]
 
+        info["duration_s"] = yt_duration
         if track:
-            info = {
-                "title": track.get("title") or yt_title,
-                "artist": metadata.format_artists(track.get("artists") or "") or yt_uploader,
-                "album": track.get("album") or "",
-                "album_artist": metadata.format_artists(
-                    track.get("album_artist") or track.get("artists") or "") or yt_uploader,
-                "track": track.get("track_no") or 1,
-                "disc": track.get("disc_no") or 1,
-                "year": (track.get("release_date") or "")[:4],
-                "isrc": track.get("isrc") or "",
-                "duration_s": yt_duration,
-                "cover_url": track.get("cover_url") or "",
-            }
-        else:
-            artist, title = _split_youtube_title(yt_title)
-            info = {"title": title, "artist": artist or yt_uploader,
-                    "album": "", "album_artist": artist or yt_uploader,
-                    "track": 1, "disc": 1, "year": "", "isrc": "",
-                    "duration_s": yt_duration}
+            info["cover_url"] = track.get("cover_url") or ""
 
         dupe = find_duplicate(track or {"spotify_id": f"yt:{video_id}"}, info)
         if dupe:
