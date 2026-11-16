@@ -161,7 +161,9 @@ def dashboard(request: Request):
     recent = db.q(
         "SELECT * FROM tracks WHERE status='done' ORDER BY updated_at DESC LIMIT 8")
     msg = request.query_params.get("msg")
-    notice = {"k": "info", "v": msg} if msg else None
+    err = request.query_params.get("err")
+    notice = ({"k": "err", "v": err} if err
+              else {"k": "info", "v": msg} if msg else None)
     return render(request, "dashboard.html", runs=runs, recent=recent, notice=notice,
                   duplicates_count=len(downloader.duplicates()) if stats()["done"] else 0)
 

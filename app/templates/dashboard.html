@@ -5,7 +5,8 @@
 {% if notice %}
   <div class="mb-6 rounded-lg border px-4 py-3 text-sm
     {{ 'border-emerald-700 bg-emerald-900/30 text-emerald-200' if notice.k == 'ok'
-       else 'border-rose-700 bg-rose-900/30 text-rose-200' }}">
+       else ('border-rose-700 bg-rose-900/30 text-rose-200' if notice.k == 'err'
+             else 'border-sky-700 bg-sky-900/30 text-sky-100') }}">
     {{ notice.v }}
   </div>
 {% endif %}
