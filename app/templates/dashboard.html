@@ -20,6 +20,12 @@
 </div>
 {% endif %}
 
+<form method="get" action="/search" class="mb-6 flex gap-2">
+  <input name="q" placeholder="Titre, playlist, ID de playlist Spotify, lien YouTube…"
+         class="flex-1 rounded-md bg-slate-800 border border-slate-700 px-3 py-2 text-sm">
+  <button class="rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-4 py-2">Rechercher</button>
+</form>
+
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
   {% set cards = [('Titres connus', stats.total, 'text-white'),
                   ('Téléchargés', stats.done, 'text-emerald-400'),

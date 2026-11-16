@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Recherche · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="max-w-4xl">
+  <h1 class="text-xl font-semibold text-white mb-1">Recherche</h1>
+  <p class="text-sm text-slate-400 mb-4">
+    Nom d'un titre ou d'une playlist, identifiant/URL de playlist Spotify, ou lien d'une vidéo YouTube.
+  </p>
+
+  <form method="get" action="/search" class="flex gap-2 mb-6">
+    <input name="q" value="{{ q }}" autofocus
+           placeholder="Ex. Stayin' Alive · 37i9dQZF1DXcBWIGoYBM5M · https://youtu.be/…"
+           class="flex-1 rounded-md bg-slate-800 border border-slate-700 px-3 py-2 text-sm">
+    <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">Chercher</button>
+  </form>
+
+  {% if request.query_params.get('msg') %}
+  <div class="mb-4 rounded-lg border border-emerald-700 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200 break-all">
+    {{ request.query_params.get('msg') }}
+  </div>
+  {% endif %}
+  {% if request.query_params.get('err') %}
+  <div class="mb-4 rounded-lg border border-rose-700 bg-rose-900/30 px-4 py-3 text-sm text-rose-200">
+    {{ request.query_params.get('err') }}
+  </div>
+  {% endif %}
+
+  {% if result.error %}
+  <div class="rounded-lg border border-rose-700 bg-rose-900/30 px-4 py-3 text-sm text-rose-200">
+    {{ result.error }}
+  </div>
+
+  {% elif result.kind == 'youtube_video' %}
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <div class="text-sm text-white mb-1">Vidéo YouTube <span class="font-mono text-slate-400">{{ result.video }}</span></div>
+    <p class="text-xs text-slate-400 mb-3">
+      Téléchargement de <strong>cette</strong> vidéo exacte (aucune recherche, donc aucune version live surprise).
+    </p>
+    <form method="post" action="/search/youtube" class="space-y-3">
+      <input type="hidden" name="video" value="{{ result.video }}">
+      {% if result.error_tracks %}
+      <label class="block text-sm">Ou remplacer un titre en échec
+        <select name="track_id" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 text-sm">
+          <option value="">— téléchargement autonome —</option>
+          {% for t in result.error_tracks %}
+          <option value="{{ t.id }}">{{ t.artists }} — {{ t.title }}</option>
+          {% endfor %}
+        </select>
+        <span class="text-xs text-slate-500">dans ce cas les tags Spotify de la piste remplacent ceux de YouTube</span>
+      </label>
+      {% endif %}
+      <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">
+        Télécharger cette vidéo
+      </button>
+    </form>
+  </div>
+
+  {% elif result.kind == 'spotify_playlist' and result.playlist %}
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <div class="flex items-start gap-3 mb-3">
+      {% if result.playlist.cover %}<img src="{{ result.playlist.cover }}" alt="" class="w-16 h-16 rounded object-cover">{% endif %}
+      <div class="min-w-0">
+        <div class="text-white font-medium truncate">{{ result.playlist.name }}</div>
+        <div class="text-xs text-slate-500">{{ result.tracks|length }} titre(s) lu(s){% if result.playlist.truncated %} · page d'intégration limitée à 50{% endif %}</div>
+      </div>
+    </div>
+    <form method="post" action="/search/spotify" class="mb-3">
+      <input type="hidden" name="playlist_id" value="{{ result.playlist.id }}">
+      <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">
+        Importer ces {{ result.tracks|length }} titre(s)
+      </button>
+    </form>
+    <ul class="divide-y divide-slate-800/70 text-sm">
+      {% for t in result.tracks %}
+      <li class="py-1.5 flex justify-between gap-3">
+        <span class="truncate"><span class="text-slate-200">{{ t.title }}</span>
+          <span class="text-slate-500">— {{ t.artists }}</span></span>
+        <span class="text-xs text-slate-600 shrink-0">{{ '%d:%02d'|format((t.duration_ms or 0)//60000, ((t.duration_ms or 0)//1000)%60) }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  {% elif result.kind == 'text' %}
+    {% if result.tracks %}
+    <h2 class="text-sm font-medium text-white mb-2">Titres ({{ result.tracks|length }})</h2>
+    <div class="rounded-xl border border-slate-800 overflow-hidden mb-6">
+      <table class="w-full text-sm">
+        <tbody class="divide-y divide-slate-800/70">
+          {% for t in result.tracks %}
+          <tr class="hover:bg-slate-900/60">
+            <td class="px-3 py-2">
+              <div class="text-white truncate max-w-lg">{{ t.title }}</div>
+              <div class="text-xs text-slate-500 truncate max-w-lg">{{ t.artists }}{% if t.album %} · {{ t.album }}{% endif %}</div>
+              {% if t.error %}<div class="text-xs text-rose-400 truncate max-w-lg">{{ t.error }}</div>{% endif %}
+            </td>
+            <td class="px-3 py-2 text-right">
+              <span class="text-xs rounded px-2 py-0.5 {{ 'bg-emerald-900/60 text-emerald-300' if t.status == 'done'
+                 else 'bg-rose-900/60 text-rose-300' if t.status == 'error' else 'bg-slate-800 text-slate-300' }}">{{ t.status }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if result.playlists %}
+    <h2 class="text-sm font-medium text-white mb-2">Playlists ({{ result.playlists|length }})</h2>
+    <ul class="rounded-xl border border-slate-800 divide-y divide-slate-800/70 text-sm">
+      {% for p in result.playlists %}
+      <li class="px-3 py-2 flex justify-between gap-3">
+        <span class="truncate">{{ p.name }} <span class="text-xs text-slate-500">· {{ p.total }} titres</span></span>
+        <a href="/playlists" class="text-xs text-emerald-400 hover:underline shrink-0">gérer</a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if not result.tracks and not result.playlists %}
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6 text-sm text-slate-400">
+      Aucun résultat local. Pour une playlist Spotify, collez son identifiant (22 caractères) ou son URL ;
+      pour une vidéo, collez le lien YouTube.
+    </div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .config import FFMPEG_BIN, FFPROBE_BIN
 
-AUDIO_EXT = {".mp3", ".opus", ".m4a", ".flac", ".ogg", ".wav"}
+AUDIO_EXT = {".mp3", ".opus", ".m4a", ".flac", ".ogg", ".wav", ".webm", ".aac", ".mp4"}
 _FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _FEAT = re.compile(r"\s*[\(\[](feat\.?|ft\.?|featuring|avec|prod\.)[^\)\]]*[\)\]]", re.I)
 

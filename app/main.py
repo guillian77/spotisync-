@@ -12,7 +12,8 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import config, db, downloader, importer, metadata, notify, spotify, sync
+from . import (config, db, downloader, importer, metadata, notify, search,
+                spotify, sync)
 from .downloader import manager
 
 app = FastAPI(title=config.APP_NAME, version=config.VERSION)
@@ -367,6 +368,81 @@ async def import_upload(file: UploadFile = File(...), name: str = Form("")):
     msg = (f"{res['new']} nouveaux, {res['updated']} mis à jour — "
            f"{res['total']} titres dans « {res['playlist_name']} »")
     return RedirectResponse("/playlists?ok=" + quote_plus(msg), status_code=303)
+
+
+# --- recherche unifiée -----------------------------------------------------
+
+@app.get("/search", response_class=HTMLResponse)
+def search_page(request: Request, q: str = ""):
+    kind, value = search.detect(q) if q.strip() else ("text", "")
+    result: dict = {"kind": kind}
+    if kind == "text" and q.strip():
+        result.update(search.search_local(value))
+    elif kind == "spotify_playlist":
+        try:
+            playlist = search.fetch_spotify_playlist(value)
+            result.update(playlist=playlist, tracks=playlist["tracks"])
+        except Exception as exc:  # noqa: BLE001 - réseau, page absente, playlist privée
+            result["error"] = str(exc)
+    elif kind == "youtube_video":
+        result["video"] = value
+        result["error_tracks"] = [dict(r) for r in db.q(
+            "SELECT id, title, artists FROM tracks WHERE status='error' ORDER BY id LIMIT 25")]
+    elif kind == "youtube_playlist":
+        result["error"] = ("Les playlists YouTube ne sont pas encore gérées : "
+                           "collez le lien d'une vidéo précise.")
+    return render(request, "search.html", q=q, result=result)
+
+
+@app.post("/search/youtube")
+def search_youtube(video: str = Form(...), track_id: str = Form("")):
+    track = db.q1("SELECT * FROM tracks WHERE id=?", (int(track_id),)) if track_id.strip() else None
+    status, detail = downloader.download_youtube(video, dict(track) if track else None)
+    if track is not None:
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        if status == downloader.STATUS_DONE:
+            db.qx("UPDATE tracks SET status='done', file_path=?, file_size=?, error=NULL,"
+                  " updated_at=? WHERE id=?",
+                  (detail["path"], detail["size"], now, track["id"]))
+        elif status == downloader.STATUS_DUPE:
+            db.qx("UPDATE tracks SET status='dupe', error=?, updated_at=? WHERE id=?",
+                  (str(detail), now, track["id"]))
+        else:
+            db.qx("UPDATE tracks SET status='error', error=?, updated_at=? WHERE id=?",
+                  (str(detail)[:400], now, track["id"]))
+    message = ("Vidéo enregistrée" if status == downloader.STATUS_DONE else str(detail))
+    if status == downloader.STATUS_DONE:
+        message += " — " + detail["path"]
+        expected = int(track["duration_ms"] or 0) if track is not None else 0
+        actual = float(detail.get("duration_s") or 0)
+        if expected and actual and abs(actual - expected / 1000) > max(
+                8, expected / 1000 * 0.04):
+            message += (f" · ATTENTION durée {actual:.0f} s contre "
+                        f"{expected/1000:.0f} s attendues : vérifiez qu'il ne s'agit pas "
+                        f"d'une version live")
+    return RedirectResponse("/search?q=" + quote_plus(str(detail.get("video", video))
+                                                      if isinstance(detail, dict) else video)
+                            + "&msg=" + quote_plus(message), status_code=303)
+
+
+@app.post("/search/spotify")
+def search_spotify(playlist_id: str = Form(...)):
+    try:
+        playlist = search.fetch_spotify_playlist(playlist_id)
+    except Exception as exc:  # noqa: BLE001
+        return RedirectResponse("/search?q=" + quote_plus(playlist_id) + "&err=" + quote_plus(str(exc)),
+                                status_code=303)
+    rows = search.spotify_embed_tracks(playlist)
+    if not rows:
+        return RedirectResponse("/search?q=" + quote_plus(playlist_id)
+                                + "&err=" + quote_plus("Aucune piste lisible"), status_code=303)
+    res = importer.import_tracks(rows, playlist["name"])
+    msg = (f"{res['new']} nouveaux, {res['updated']} mis à jour — "
+           f"{res['total']} titres dans « {res['playlist_name']} »")
+    if playlist.get("truncated"):
+        msg += " (50 premiers titres seulement : utilisez Exportify pour la playlist complète)"
+    return RedirectResponse("/playlists?ok=" + quote_plus(msg), status_code=303)
+
 
 
 # --- OAuth -----------------------------------------------------------------

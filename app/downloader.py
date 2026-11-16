@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from . import db, metadata, spotify
-from .config import CONFIG_DIR, LOG_DIR, SPOTDL_BIN, STAGING_DIR
+from .config import CONFIG_DIR, FFMPEG_BIN, LOG_DIR, SPOTDL_BIN, STAGING_DIR
 
 STATUS_PENDING = "pending"
 STATUS_QUEUED = "queued"
@@ -596,3 +596,146 @@ def scan_async() -> bool:
 
     threading.Thread(target=_run, daemon=True).start()
     return True
+
+# --- téléchargement direct d'une vidéo YouTube (voie exacte) ----------------
+
+_PROMO = re.compile(r"[\[\]\(\)](?:official|clip|video|audio|lyrics?|hd|hq|4k|"
+                    r"remaster(?:ed)?|explicit|visualizer|live)[^\]\)]*[\]\)]", re.I)
+
+
+def _ytdlp_bin() -> str:
+    import shutil
+    return shutil.which("yt-dlp") or "yt-dlp"
+
+
+def _run(cmd: list[str], cwd: Path, timeout: int = 600):
+    proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, env=run_env(),
+                            start_new_session=True)
+    manager.register(proc)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+        code = proc.returncode
+    except subprocess.TimeoutExpired:
+        _kill_tree(proc)
+        out, err = proc.communicate()
+        code = -1
+    finally:
+        manager.unregister(proc)
+    return code, out, err
+
+
+def _split_youtube_title(raw: str) -> tuple[str, str]:
+    """« Artiste - Titre (Official Video) » -> (« Artiste », « Titre »)."""
+    clean = _PROMO.sub("", raw or "").strip(" -")
+    if " - " in clean:
+        artist, title = clean.split(" - ", 1)
+        return artist.strip(), title.strip()
+    return "", clean or "Sans titre"
+
+
+_MEDIA_EXT = {".webm", ".m4a", ".mp4", ".mkv", ".opus", ".ogg", ".mp3", ".aac", ".flac", ".wav"}
+
+
+def _find_any_media(directory) -> Path | None:
+    """yt-dlp sort souvent du .webm ou du .m4a : on prend le plus gros fichier média."""
+    best = None
+    for root, _dirs, files in os.walk(directory):
+        for name in files:
+            p = Path(root) / name
+            if p.suffix.lower() in _MEDIA_EXT and not name.startswith("out."):
+                if best is None or p.stat().st_size > best.stat().st_size:
+                    best = p
+    return best
+
+def download_youtube(video: str, track: dict | None = None) -> tuple[str, dict | str]:
+    """Télécharge une vidéo YouTube précise (aucune recherche, aucun risque de live).
+
+    Si `track` est fourni, l'audio remplace la piste en base : les tags Spotify priment.
+    """
+    import uuid
+    ref = video.strip()
+    url = ref if ref.startswith("http") else f"https://www.youtube.com/watch?v={ref}"
+    staging = Path(STAGING_DIR) / f"yt-{uuid.uuid4().hex[:10]}"
+    staging.mkdir(parents=True, exist_ok=True)
+    fmt = db.setting("audio_format", "mp3")
+    bitrate = db.setting("audio_bitrate", "320k")
+    runtime = js_runtime()
+    js_args = ["--js-runtimes", runtime] if runtime else []
+
+    try:
+        code, out, err = _run(
+            [_ytdlp_bin(), "--no-playlist", "--skip-download", *js_args, "--print",
+             "%(id)s\n%(title)s\n%(uploader)s\n%(duration)s", url], staging, timeout=180)
+        if code != 0:
+            return STATUS_ERROR, ("yt-dlp : " + (err or out or "échec").strip().splitlines()[-1])[:300]
+        lines = [l.strip() for l in (out or "").splitlines() if l.strip()]
+        video_id, yt_title = (lines[0] if lines else ""), (lines[1] if len(lines) > 1 else "")
+        yt_uploader = lines[2] if len(lines) > 2 else ""
+        yt_duration = float(lines[3]) if len(lines) > 3 and lines[3].replace(".", "").isdigit() else 0.0
+
+        if manager.stopping or manager._stop.is_set():
+            return STATUS_STOPPED, "interrompu par l'utilisateur"
+
+        code, out, err = _run(
+            [_ytdlp_bin(), "--no-playlist", *js_args, "-f", "bestaudio/best",
+             "-o", "src.%(ext)s", url], staging, timeout=900)
+        source = _find_any_media(staging)
+        if source is None:
+            return STATUS_ERROR, ("yt-dlp : " + (err or out or "aucun fichier").strip().splitlines()[-1])[:300]
+        if manager.stopping or manager._stop.is_set():
+            shutil.rmtree(staging, ignore_errors=True)
+            return STATUS_STOPPED, "interrompu par l'utilisateur"
+
+        converted = staging / f"out.{fmt}"
+        ff_args = ["-y", "-i", str(source), "-vn"]
+        if fmt == "mp3":
+            ff_args += ["-codec:a", "libmp3lame", "-b:a", bitrate if bitrate != "auto" else "320k"]
+        elif fmt in ("m4a",):
+            ff_args += ["-codec:a", "aac", "-b:a", bitrate if bitrate != "auto" else "256k"]
+        elif fmt in ("opus", "ogg"):
+            ff_args += ["-codec:a", "libopus", "-b:a", bitrate if bitrate != "auto" else "160k"]
+        else:
+            ff_args += ["-codec:a", "flac"]
+        code, out, err = _run([FFMPEG_BIN, *ff_args, str(converted)],
+                              staging, timeout=600)
+        if not converted.exists():
+            return STATUS_ERROR, ("ffmpeg : " + (err or "").strip().splitlines()[-1])[:300]
+
+        if track:
+            info = {
+                "title": track.get("title") or yt_title,
+                "artist": metadata.format_artists(track.get("artists") or "") or yt_uploader,
+                "album": track.get("album") or "",
+                "album_artist": metadata.format_artists(
+                    track.get("album_artist") or track.get("artists") or "") or yt_uploader,
+                "track": track.get("track_no") or 1,
+                "disc": track.get("disc_no") or 1,
+                "year": (track.get("release_date") or "")[:4],
+                "isrc": track.get("isrc") or "",
+                "duration_s": yt_duration,
+                "cover_url": track.get("cover_url") or "",
+            }
+        else:
+            artist, title = _split_youtube_title(yt_title)
+            info = {"title": title, "artist": artist or yt_uploader,
+                    "album": "", "album_artist": artist or yt_uploader,
+                    "track": 1, "disc": 1, "year": "", "isrc": "",
+                    "duration_s": yt_duration}
+
+        dupe = find_duplicate(track or {"spotify_id": f"yt:{video_id}"}, info)
+        if dupe:
+            shutil.rmtree(staging, ignore_errors=True)
+            return STATUS_DUPE, f"doublon de {dupe}"
+
+        rel = metadata.build_relpath(db.setting("output_template"), info)
+        target = Path(db.setting("music_dir")) / f"{rel}.{fmt}"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target = metadata.unique_path(target)
+        shutil.move(str(converted), str(target))
+        metadata.write_tags(target, info)
+        return STATUS_DONE, {"path": str(target), "size": target.stat().st_size,
+                             "source": "youtube", "video": video_id,
+                             "match": yt_title, "duration_s": yt_duration}
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)

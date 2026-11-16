@@ -132,6 +132,21 @@ SPOTISYNC_CONFIG=./data SPOTISYNC_MUSIC=./music .venv/bin/uvicorn app.main:app -
 Arborescence : `app/{config,db,spotify,sync,downloader,metadata,main}.py`,
 `app/templates/*.html` (Jinja2 + Tailwind/HTMX via CDN), `unraid/` (template + icône).
 
+## Recherche unifiée
+
+Champ de recherche sur le tableau de bord (et page `/search`), avec détection automatique :
+
+| Saisie | Comportement |
+|---|---|
+| nom de titre / artiste / album | recherche locale dans la base (statut et motif d'erreur visibles) |
+| nom de playlist | recherche locale parmi les playlists connues |
+| ID (22 car.) ou URL de playlist Spotify | lecture de la page d'intégration publique — **sans API ni Premium** — puis import ; limité aux **50 premiers titres** |
+| ID (11 car.) ou URL de vidéo YouTube | téléchargement de **cette vidéo exacte** via yt-dlp, avec option « remplacer un titre en échec » (les tags Spotify priment) |
+
+Les playlists YouTube ne sont pas gérées (message explicite). La lecture d'une playlist Spotify
+passe par `open.spotify.com/embed` : pas de pagination possible, donc pour une grande playlist
+utilisez Exportify.
+
 ## Correspondance audio et garde-fous
 
 spotDL peut échouer sur la résolution Spotify (bug de son client anonyme `SpotipyFree` :
