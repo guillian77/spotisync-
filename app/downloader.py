@@ -305,10 +305,11 @@ def _duration_problem(actual_s: float, expected_ms: int) -> tuple[bool, float]:
     expected = expected_ms / 1000.0
     delta = abs(actual_s - expected)
     try:
-        configured = db.setting_int("duration_tolerance_s", 8)
+        configured = db.setting_int("duration_tolerance_s", 20)
     except Exception:  # noqa: BLE001
-        configured = 8
-    tolerance = max(configured, expected * 0.04)
+        configured = 20
+    # marge généreuse : les masters YouTube diffèrent souvent de quelques secondes
+    tolerance = max(configured, expected * 0.10)
     return delta > tolerance, round(delta, 1)
 
 
@@ -327,6 +328,9 @@ def _candidates(track: dict) -> list[tuple[str, str]]:
         album = (track.get("album") or "").strip()
         if album:
             out.append(("recherche+album", f"{base} {album}"))
+        out.append(("recherche+audio", f"{base} audio"))
+        if album:
+            out.append(("recherche+album+audio", f"{base} {album} audio"))
     return out
 
 
@@ -755,9 +759,17 @@ def download_youtube(video: str, track: dict | None = None) -> tuple[str, dict |
         if manager.stopping or manager._stop.is_set():
             return STATUS_STOPPED, "interrompu par l'utilisateur"
 
-        code, out, err = _run(
-            [_ytdlp_bin(), "--no-playlist", *js_args, "-f", "bestaudio/best",
-             "-o", "src.%(ext)s", url], staging, timeout=900)
+        dl_args = [_ytdlp_bin(), "--no-playlist", *js_args, "-f", "bestaudio/best",
+                   "-o", "src.%(ext)s", url]
+        code, out, err = _run(dl_args, staging, timeout=900)
+        if code != 0 and "403" in (err or ""):
+            # YouTube bloque certains clients : nouvel essai avec une autre extraction
+            for client in ("android,web", "ios", "tv"):
+                code, out, err = _run(
+                    [*dl_args[:-1], "--extractor-args", f"youtube:player_client={client}", url],
+                    staging, timeout=900)
+                if code == 0:
+                    break
         source = _find_any_media(staging)
         if source is None:
             return STATUS_ERROR, ("yt-dlp : " + (err or out or "aucun fichier").strip().splitlines()[-1])[:300]

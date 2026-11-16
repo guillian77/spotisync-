@@ -8,7 +8,7 @@ def _env(key: str, default: str = "") -> str:
 
 
 APP_NAME = "Spotisync"
-VERSION = "0.9.1"
+VERSION = "0.9.2"
 
 CONFIG_DIR = Path(_env("SPOTISYNC_CONFIG", "/config"))
 DEFAULT_MUSIC_DIR = _env("SPOTISYNC_MUSIC", "/music")
@@ -35,7 +35,7 @@ DEFAULTS = {
     "audio_providers": "youtube-music youtube",
     "trust_db_metadata": "1",
     "reject_keywords": "live,concert,en concert,in concert,session,rehearsal,karaoke,instrumental",
-    "duration_tolerance_s": "8",
+    "duration_tolerance_s": "20",
     "normalize_artists": "1",
     "overwrite_mode": "skip",
     "dupe_threshold": "92",

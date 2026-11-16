@@ -172,10 +172,13 @@ la résolution Spotify échoue :
 1. URL Spotify de la piste
 2. `Artiste - Titre`
 3. `Artiste - Titre Album`
+4. `Artiste - Titre audio` et `Artiste - Titre Album audio`
 
 Chaque candidat téléchargé est accepté ou refusé avant d'être rangé :
 
-- **durée** : écart avec la durée Spotify > 8 s (ou 4 %) → refusé (`duration_tolerance_s`)
+- **durée** : écart toléré = le maximum entre `duration_tolerance_s` (20 s par défaut) et
+  10 % de la durée Spotify ; au-delà, le candidat est refusé. Un radio edit de 12 s plus court
+  passe, une version live de 4 minutes non
 - **versions live/concert** : si le résultat contient `live`, `concert`, `session`, `karaoke`…
   alors que le titre Spotify ne l'annonce pas → refusé (`reject_keywords`, correspondance sur
   mot entier : `alive` ne déclenche pas `live`)
@@ -200,6 +203,9 @@ album, album_artist, numéro de piste, année, ISRC. YouTube ne fournit que l'au
 - **Tous les titres en `KeyError: 'uri'` ou `LookupError: No results`** : le client Spotify
   anonyme de spotDL est cassé ou limité ; la 0.7.0 bascule automatiquement en recherche texte.
   Si l'erreur persiste, vérifiez `spotdl download "Artiste - Titre"` en direct dans le conteneur.
+- **`HTTP Error 403: Forbidden` sur certaines vidéos YouTube** : blocage anti-robot. L'app
+  réessaie automatiquement avec d'autres clients d'extraction (`android,web`, `ios`, `tv`).
+  Si le blocage persiste, il faut fournir des cookies YouTube (non pris en charge à ce jour).
 - **`Some YouTube downloads require Deno` / `YT-DLP download error`** : yt-dlp a besoin d'un
   runtime JS récent pour les challenges de YouTube ; le paquet Debian `nodejs` est trop ancien.
   L'image installe **Deno** (runtime par défaut) et le code retombe sur `node` s'il est absent.

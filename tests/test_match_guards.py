@@ -11,10 +11,12 @@ def test_candidates_order_url_then_search_then_album():
     track = {"url": "https://open.spotify.com/track/abc", "title": "Stayin' Alive",
              "artists": "Bee Gees, Barry Gibb", "album": "Saturday Night Fever"}
     kinds = [kind for kind, _ in downloader._candidates(track)]
-    assert kinds == ["spotify", "recherche", "recherche+album"]
+    assert kinds == ["spotify", "recherche", "recherche+album",
+                     "recherche+audio", "recherche+album+audio"]
     queries = [q for _, q in downloader._candidates(track)]
     assert queries[1] == "Bee Gees - Stayin' Alive"
     assert queries[2] == "Bee Gees - Stayin' Alive Saturday Night Fever"
+    assert queries[3] == "Bee Gees - Stayin' Alive audio"
 
 
 def test_candidates_without_url_start_with_search():
@@ -44,9 +46,12 @@ def test_alternate_version_flags_live_only_when_unexpected():
 
 
 def test_duration_problem_thresholds(monkeypatch):
-    monkeypatch.setattr(downloader.db, "setting_int", lambda key, default=0: 8)
+    monkeypatch.setattr(downloader.db, "setting_int", lambda key, default=0: 20)
     too_far, delta = downloader._duration_problem(285.4, 285000)
     assert too_far is False and delta < 1
+    # 12 s d'écart (radio edit) : toléré depuis la 0.9.2
+    too_far, _ = downloader._duration_problem(297.0, 285000)
+    assert too_far is False
 
     too_far, delta = downloader._duration_problem(420.0, 285000)  # live de 7 minutes
     assert too_far is True and delta >= 100

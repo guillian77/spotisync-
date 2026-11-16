@@ -133,7 +133,7 @@
         <label class="block">Tolérance de durée (s)
           <input name="duration_tolerance_s" type="number" min="2" max="60" value="{{ cfg.duration_tolerance_s }}"
                  class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
-          <span class="text-xs text-slate-500">au-delà : candidat refusé, essai suivant</span>
+          <span class="text-xs text-slate-500">marge = max(cette valeur, 10 % de la durée) ; au-delà : candidat refusé</span>
         </label>
       </div>
       <p class="mt-3 text-xs text-slate-500">
