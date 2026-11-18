@@ -6,7 +6,7 @@
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app.css?v={{ version }}">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
   <style>
     body { font-feature-settings: "cv02","cv03","cv04","cv11"; }
@@ -55,5 +55,119 @@
 <footer class="max-w-6xl mx-auto px-4 py-8 text-xs text-slate-600">
   Spotisync · métadonnées Spotify, audio via spotDL/YouTube Music · aucun flux Spotify n'est téléchargé
 </footer>
+{% if flash %}
+<div id="flash" data-flash="{{ flash.message }}" data-kind="{{ flash.kind }}" hidden></div>
+{% endif %}
+
+<div id="toasts" class="pointer-events-none fixed bottom-4 right-4 z-50 flex w-[22rem] max-w-[calc(100vw-2rem)] flex-col gap-2"
+     aria-live="polite" aria-atomic="false"></div>
+
+<dialog id="confirm-dialog"
+        class="w-[26rem] max-w-[calc(100vw-2rem)] rounded-xl border border-slate-700 bg-slate-900 p-0 text-slate-200 shadow-2xl">
+  <form method="dialog" class="p-5">
+    <h2 class="text-sm font-semibold text-white">Confirmer</h2>
+    <p id="confirm-message" class="mt-2 text-sm text-slate-300 whitespace-pre-line"></p>
+    <div class="mt-5 flex justify-end gap-2">
+      <button value="cancel" class="rounded-md bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700">Annuler</button>
+      <button value="ok" id="confirm-ok" class="rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-500">Confirmer</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  var HOST = document.getElementById('toasts');
+  var KINDS = { ok: 'toast--ok', err: 'toast--err', info: 'toast--info' };
+
+  function dismiss(el) {
+    if (el.classList.contains('toast--out')) return;
+    el.classList.add('toast--out');
+    setTimeout(function () { el.remove(); }, 200);
+  }
+
+  window.toast = function (message, kind) {
+    if (!HOST || !message) return;
+    var el = document.createElement('div');
+    el.className = 'toast ' + (KINDS[kind] || KINDS.info);
+    el.setAttribute('role', 'status');
+
+    var text = document.createElement('span');
+    text.className = 'toast__text';
+    text.textContent = message;            // textContent : aucun HTML interprété
+
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Fermer');
+    close.className = 'toast__close';
+    close.textContent = '✕';
+    close.addEventListener('click', function () { dismiss(el); });
+
+    el.appendChild(text);
+    el.appendChild(close);
+    HOST.appendChild(el);   // l'animation d'entrée est portée par le CSS (.toast)
+
+    var timer = setTimeout(function () { dismiss(el); }, 6000);
+    el.addEventListener('mouseenter', function () { clearTimeout(timer); });
+    el.addEventListener('mouseleave', function () { timer = setTimeout(function () { dismiss(el); }, 2000); });
+  };
+
+  // message poussé par le serveur après une action
+  var flash = document.getElementById('flash');
+  if (flash) {
+    toast(flash.dataset.flash, flash.dataset.kind);
+    // on nettoie l'URL pour qu'un rechargement ne rejoue pas le toast
+    if (history.replaceState) {
+      var url = new URL(location.href);
+      ['msg', 'v', 'ok', 'err', 'scan_err', 'scanned', 'redl'].forEach(function (k) { url.searchParams.delete(k); });
+      history.replaceState(null, '', url.pathname + (url.search || ''));
+    }
+  }
+
+  // confirmation en page, à la place de window.confirm
+  var dialog = document.getElementById('confirm-dialog');
+  var label = document.getElementById('confirm-message');
+  var pending = null;
+
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form || !form.dataset || !form.dataset.confirm || form.dataset.confirmed === '1') return;
+    e.preventDefault();
+    pending = form;
+    label.textContent = form.dataset.confirm;
+    if (dialog && dialog.showModal) {
+      dialog.showModal();
+      var okBtn = dialog.querySelector('#confirm-ok');
+      if (okBtn) okBtn.focus();
+    }
+    else if (window.confirm(form.dataset.confirm)) { form.dataset.confirmed = '1'; form.submit(); }
+  }, true);
+
+  if (dialog) {
+    // On ne se fie pas à l'événement « close » (non déclenché de façon fiable selon les
+    // moteurs) : c'est la soumission du formulaire interne qui décide.
+    var inner = dialog.querySelector('form');
+    if (inner) {
+      inner.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var ok = e.submitter ? e.submitter.value === 'ok' : dialog.returnValue === 'ok';
+        var form = pending;
+        pending = null;
+        dialog.close();
+        if (ok && form) {
+          form.dataset.confirmed = '1';
+          form.submit();
+        }
+      });
+    }
+    dialog.addEventListener('cancel', function () { pending = null; });
+    dialog.addEventListener('close', function () { pending = null; });
+  }
+
+  window.confirmAction = function (form) {  // utilitaire, au cas où
+    form.dataset.confirmed = '1';
+    form.submit();
+  };
+})();
+</script>
 </body>
 </html>

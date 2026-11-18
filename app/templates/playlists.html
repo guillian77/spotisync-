@@ -27,16 +27,6 @@
   fichier mis à jour, les titres déjà connus ne seront pas dupliqués.
 </div>
 
-{% if request.query_params.get('err') %}
-<div class="mb-4 rounded-lg border border-rose-700 bg-rose-900/30 px-4 py-3 text-sm text-rose-200">
-  {{ request.query_params.get('err') }}
-</div>
-{% endif %}
-{% if request.query_params.get('ok') %}
-<div class="mb-4 rounded-lg border border-emerald-700 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200">
-  {{ request.query_params.get('ok') }}
-</div>
-{% endif %}
 
 <details class="mb-6 rounded-xl border border-slate-800 bg-slate-900/50" {{ 'open' if not playlists }}>
   <summary class="cursor-pointer select-none px-4 py-3 text-sm text-white">
@@ -103,7 +93,7 @@
         </form>
         {% if is_import %}
         <form method="post" action="/playlists/{{ p.id }}/delete"
-              onsubmit="return confirm('Retirer cet import de la liste ? Les titres déjà en base sont conservés.')">
+              data-confirm="Retirer cet import de la liste ? Les titres déjà en base sont conservés.">
           <button class="text-xs rounded px-2 py-1 bg-slate-800 text-rose-300 hover:bg-rose-900/60">Retirer</button>
         </form>
         {% endif %}

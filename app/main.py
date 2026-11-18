@@ -145,7 +145,35 @@ def render(request: Request, name: str, **ctx) -> HTMLResponse:
     ctx.setdefault("err_count", state["errors"])
     ctx.setdefault("pending_count", state["pending"])
     ctx.setdefault("sync_state", sync_state())
+    ctx.setdefault("flash", _flash_message(request))
     return templates.TemplateResponse(request, name, ctx)
+
+
+def _flash_message(request: Request):
+    """Message à afficher en toast au chargement de la page.
+
+    Centralisé ici : les vues n'ont plus à dessiner de bandeau, et l'ancien format
+    « /?msg=k=ok&v=texte » reste compris.
+    """
+    qp = request.query_params
+    kind, message = "info", ""
+    if qp.get("msg"):
+        raw = qp["msg"]
+        if raw.startswith("k=") and qp.get("v"):
+            kind, message = raw[2:], qp["v"]
+        else:
+            message = raw
+    elif qp.get("ok"):
+        kind, message = "ok", qp["ok"]
+    elif qp.get("err"):
+        kind, message = "err", qp["err"]
+    elif qp.get("scan_err"):
+        kind, message = "err", qp["scan_err"]
+    elif qp.get("scanned"):
+        kind, message = "ok", f"{qp['scanned']} fichier(s) indexé(s)."
+    elif qp.get("redl"):
+        kind, message = "ok", qp["redl"]
+    return {"kind": kind, "message": message} if message else None
 
 
 def flash(request: Request, kind: str, message: str) -> RedirectResponse:

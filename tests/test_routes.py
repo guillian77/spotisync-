@@ -149,3 +149,33 @@ def test_delete_keeps_current_filters():
     assert r.status_code == 303
     loc = r.headers["location"]
     assert "q=orphelin" in loc and "status=done" in loc
+
+
+def test_feedback_uses_toasts_not_native_dialogs():
+    """Aucun window.confirm/alert : confirmation en page + toasts."""
+    html = client.get("/library").text
+    assert 'onsubmit="return confirm(' not in html      # plus de popup natif
+    assert "window.alert" not in html
+    assert "onsubmit=" not in html
+    assert 'data-confirm="' in html            # confirmation portée par le formulaire
+    assert 'id="confirm-dialog"' in html and 'id="toasts"' in html
+
+
+def test_server_message_becomes_a_toast():
+    ok = client.get("/library", params={"redl": "« Test » supprimée de la bibliothèque"})
+    assert ok.status_code == 200
+    assert 'data-flash="« Test » supprimée de la bibliothèque"' in ok.text
+    assert 'data-kind="ok"' in ok.text
+
+    err = client.get("/playlists", params={"err": "Playlist introuvable"})
+    assert 'data-flash="Playlist introuvable"' in err.text
+    assert 'data-kind="err"' in err.text
+
+    # l'ancien format /?msg=k=ok&v=texte reste compris
+    legacy = client.get("/", params={"msg": "k=ok", "v": "Analyse lancée"})
+    assert 'data-flash="Analyse lancée"' in legacy.text
+
+
+def test_scan_count_message_is_a_toast():
+    r = client.get("/library", params={"scanned": "12"})
+    assert 'data-flash="12 fichier(s) indexé(s)."' in r.text

@@ -33,21 +33,6 @@
   <button class="rounded-md bg-slate-700 hover:bg-slate-600 px-4 py-2">Filtrer</button>
 </form>
 
-{% if request.query_params.get('scanned') %}
-<div class="mb-4 rounded-lg border border-emerald-700 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200">
-  {{ request.query_params.get('scanned') }} fichier(s) indexé(s).
-</div>
-{% endif %}
-{% if request.query_params.get('redl') %}
-<div class="mb-4 rounded-lg border border-sky-700 bg-sky-900/30 px-4 py-3 text-sm text-sky-100">
-  {{ request.query_params.get('redl') }} — lancez le téléchargement depuis le tableau de bord.
-</div>
-{% endif %}
-{% if request.query_params.get('scan_err') %}
-<div class="mb-4 rounded-lg border border-rose-700 bg-rose-900/30 px-4 py-3 text-sm text-rose-200">
-  {{ request.query_params.get('scan_err') }}
-</div>
-{% endif %}
 
 <div id="library-results">
   {% include "_library_results.html" %}

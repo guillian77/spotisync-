@@ -33,3 +33,66 @@ select:focus-visible {
 #progress .transition-all {
   transition: width 0.4s ease;
 }
+
+/* --- dialogues et toasts (v0.12.0) --------------------------------------- */
+#confirm-dialog::backdrop {
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(2px);
+}
+#confirm-dialog[open] {
+  animation: dialog-in 140ms ease-out;
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #confirm-dialog[open] { animation: none; }
+  .toast, .toast--out { animation: none; }
+}
+
+/* --- toasts : styles locaux, indépendants de Tailwind --------------------- */
+#toasts { display: flex; flex-direction: column; gap: .5rem; }
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  padding: .7rem .9rem;
+  border-radius: .6rem;
+  border-left: 4px solid #38bdf8;
+  background: rgba(15, 23, 42, .97);
+  color: #e2e8f0;
+  font-size: .875rem;
+  line-height: 1.35;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  animation: toast-in .22s ease-out both;
+}
+.toast--out { animation: toast-out .2s ease-in forwards; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(6px); }
+}
+.toast--ok  { border-left-color: #10b981; }
+.toast--err { border-left-color: #f43f5e; }
+.toast--info{ border-left-color: #38bdf8; }
+
+.toast__text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+
+.toast__close {
+  flex: 0 0 auto;
+  background: none;
+  border: 0;
+  padding: 0 .1rem;
+  color: #64748b;
+  font-size: .9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.toast__close:hover { color: #fff; }

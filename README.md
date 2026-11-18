@@ -254,3 +254,17 @@ La bibliothèque se filtre **sans appuyer sur « Filtrer »** :
 - le serveur ne renvoie que le fragment du tableau (`HX-Request`), pas la page entière ;
 - supprimer ou corriger une piste **conserve les filtres en cours** (champs cachés + redirection) ;
 - sans JavaScript, le bouton « Filtrer » et le formulaire GET fonctionnent toujours.
+
+### Retours visuels (v0.12.0)
+
+- **Toasts** en bas à droite pour tous les messages du serveur (suppression, relance, scan,
+  import, erreurs) : empilables, fermables, disparition automatique après 6 s, pause au survol,
+  `aria-live` pour les lecteurs d'écran. Les anciens bandeaux colorés ont disparu.
+- **Confirmation en page** : plus aucun `window.confirm`. Les formulaires destructifs portent un
+  attribut `data-confirm`, intercepté par un `<dialog>` natif (Échap pour annuler, focus sur
+  « Confirmer »). Repli sur la boîte native uniquement si le navigateur ne gère pas `<dialog>`.
+- L'URL est nettoyée après affichage (`history.replaceState`), donc un rechargement ne rejoue pas
+  le message.
+- Styles des toasts dans `app/static/app.css` (et non via Tailwind CDN, qui ne génère pas les
+  classes des éléments créés dynamiquement) ; la feuille est versionnée (`app.css?v=<version>`)
+  pour éviter le cache après mise à jour.

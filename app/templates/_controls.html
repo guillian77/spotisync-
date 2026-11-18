@@ -66,7 +66,7 @@
     </button>
   </form>
 
-  <form method="post" action="/download/stop" onsubmit="return confirm('Arrêter le lot en cours ?')">
+  <form method="post" action="/download/stop" data-confirm="Arrêter le lot en cours ?">
     <button {{ 'disabled' if not manager.active or manager.stopping }}
             class="inline-flex items-center gap-2 rounded-md bg-slate-800 text-slate-200 text-sm px-4 py-2
                    enabled:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed">

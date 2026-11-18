@@ -15,16 +15,6 @@
     <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">Chercher</button>
   </form>
 
-  {% if request.query_params.get('msg') %}
-  <div class="mb-4 rounded-lg border border-emerald-700 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200 break-all">
-    {{ request.query_params.get('msg') }}
-  </div>
-  {% endif %}
-  {% if request.query_params.get('err') %}
-  <div class="mb-4 rounded-lg border border-rose-700 bg-rose-900/30 px-4 py-3 text-sm text-rose-200">
-    {{ request.query_params.get('err') }}
-  </div>
-  {% endif %}
 
   {% if result.error %}
   <div class="rounded-lg border border-rose-700 bg-rose-900/30 px-4 py-3 text-sm text-rose-200">
