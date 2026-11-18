@@ -287,3 +287,18 @@ envoyées au serveur (filtres, URL), seule l'affichage change.
   par spotDL), au lieu de la ligne brute ;
 - **toast de fin de lot** : le poll `/controls` renvoie un en-tête `HX-Trigger` (consommé une seule
   fois) que la page transforme en toast, sans rechargement.
+
+### Vidéos réservées aux adultes (v0.13.1)
+
+YouTube répond parfois « Sign in to confirm your age » : la vidéo est alors inaccessible sans
+connexion. Spotisync ne bloque plus sur ces pistes :
+
+- chaque candidat est **vérifié avant téléchargement** (`_age_limited`, `age_limit` lu via
+  `yt-dlp --dump-json`) ; une vidéo 18+ est écartée et mémorisée dans `rejected_sources` ;
+- si le refus survient pendant le téléchargement, la source est écartée de la même façon et le
+  candidat suivant est essayé ;
+- si toutes les sources sont verrouillées, la piste passe en échec avec un message explicite
+  (« réservées aux adultes ») au lieu d'une trace yt-dlp ;
+- **optionnel** : déposer un `cookies.txt` (format Netscape) dans `/config` suffit à activer
+  l'authentification pour spotDL (`--cookie-file`) et yt-dlp (`--cookies`) — aucune variable à
+  renseigner.

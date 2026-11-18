@@ -349,6 +349,24 @@ def _candidates(track: dict) -> list[tuple[str, str]]:
     return out
 
 
+def cookies_file() -> str:
+    """Fichier cookies YouTube, s'il existe.
+
+    Rien à configurer : il suffit de déposer `cookies.txt` dans /config. Sert aux vidéos
+    réservées aux adultes et aux rares cas de vérification anti-bot.
+    """
+    path = (db.setting("cookies_file", "") or "").strip()
+    if not path:
+        candidate = Path(os.environ.get("SPOTISYNC_CONFIG", "/config")) / "cookies.txt"
+        path = str(candidate) if candidate.exists() else ""
+    return path if path and Path(path).exists() else ""
+
+
+def cookies_args() -> list[str]:
+    path = cookies_file()
+    return ["--cookies", path] if path else []
+
+
 def _run_spotdl(query: str, staging: Path, fmt: str, bitrate: str):
     """Exécute spotDL une fois. Renvoie (audio|None, stdout, stderr, code, interrompu)."""
     providers = [p for p in (db.setting("audio_providers", "youtube-music youtube") or "").split()
@@ -359,6 +377,9 @@ def _run_spotdl(query: str, staging: Path, fmt: str, bitrate: str):
     if providers:
         cmd += ["--audio", *providers]
     cmd += _yt_dlp_args()
+    cookie = cookies_file()
+    if cookie:                       # personnalité YouTube authentifiée, si fournie
+        cmd += ["--cookie-file", cookie]
 
     from types import SimpleNamespace
     proc = subprocess.Popen(cmd, cwd=staging, stdout=subprocess.PIPE,
@@ -417,6 +438,38 @@ def reject_source(track_id: int, source_id: str, kind: str, reason: str) -> None
         pass
 
 
+# --- vidéos soumises à vérification d'âge ---------------------------------
+# YouTube répond « Sign in to confirm your age » : sans cookies, la vidéo est
+# inaccessible. Plutôt que d'échouer sur la piste, on écarte cette source et on
+# passe à la suivante — c'est transparent pour l'utilisateur.
+_AGE_RE = re.compile(
+    r"sign in to confirm your age|confirm your (?:age|birthdate)|age[- ]restricted|"
+    r"inappropriate for some users|requires? (?:you to )?sign in to confirm",
+    re.I)
+
+
+def _age_gate(text: str | None) -> bool:
+    return bool(text and _AGE_RE.search(text))
+
+
+def _age_limited(video_id: str) -> bool:
+    """Interroge YouTube sans télécharger : age_limit >= 18 ou refus d'âge ?"""
+    if not video_id:
+        return False
+    url = video_id if video_id.startswith("http") else f"https://www.youtube.com/watch?v={video_id}"
+    tmp = Path(STAGING_DIR) / "_probe"
+    tmp.mkdir(parents=True, exist_ok=True)
+    try:
+        code, out, err = _run([_ytdlp_bin(), "--dump-json", "--no-warnings",
+                               "--skip-download", *cookies_args(), url], tmp, timeout=45)
+    except Exception:  # noqa: BLE001 - une sonde qui échoue ne bloque jamais
+        return False
+    if _age_gate(err) or _age_gate(out):
+        return True
+    m = re.search(r'"age_limit"\s*:\s*(\d+)', out or "")
+    return bool(m and int(m.group(1)) >= 18)
+
+
 def download_one(track: dict) -> tuple[str, dict | str]:
     staging = Path(STAGING_DIR) / str(track.get("spotify_id") or "unknown")
     fmt = db.setting("audio_format", "mp3")
@@ -434,6 +487,10 @@ def download_one(track: dict) -> tuple[str, dict | str]:
             if video and video in blacklist:
                 reasons.append(f"{kind} : vidéo {video} déjà écartée")
                 continue
+            if video and _age_limited(video):
+                reasons.append(f"{kind} : vidéo réservée aux adultes (vérification d'âge)")
+                reject_source(track_id, video, kind, "vérification d'âge")
+                continue
         audio, out, err, code, interrupted = _run_spotdl(query, staging, fmt, bitrate)
         if interrupted:
             shutil.rmtree(staging, ignore_errors=True)
@@ -442,6 +499,10 @@ def download_one(track: dict) -> tuple[str, dict | str]:
             from types import SimpleNamespace
             result = SimpleNamespace(returncode=code, stdout=out, stderr=err)
             message = error_excerpt(result)
+            if _age_gate(f"{message} {err or ''}"):
+                reasons.append(f"{kind} : vidéo réservée aux adultes (vérification d'âge)")
+                reject_source(track_id, "", kind, "vérification d'âge")
+                continue
             reasons.append(f"{kind} : {message}")
             if kind == "spotify" and _lookup_failure(message):
                 log_failure(track, result)
@@ -515,7 +576,20 @@ def download_one(track: dict) -> tuple[str, dict | str]:
     shutil.rmtree(staging, ignore_errors=True)
     if not reasons:
         return STATUS_ERROR, "Aucun candidat exploitable"
-    return STATUS_ERROR, ("Correspondance refusée — " + " | ".join(reasons[-2:]))[:400]
+    if all("vérification d'âge" in r for r in reasons):
+        return STATUS_ERROR, ("Toutes les sources sont réservées aux adultes "
+                              "(YouTube exige une connexion) — piste laissée de côté")
+    # le motif de refus d'âge doit rester visible, même s'il n'est pas le dernier essai
+    unique: list[str] = []
+    for r in reasons:
+        if r not in unique:
+            unique.append(r)
+    shown = [r for r in unique if "vérification d'âge" in r][:1] + unique
+    picked: list[str] = []
+    for r in shown:
+        if r not in picked:
+            picked.append(r)
+    return STATUS_ERROR, ("Correspondance refusée — " + " | ".join(picked[:2]))[:400]
 
 
 def find_duplicate(track: dict, info: dict) -> str | None:
@@ -718,8 +792,14 @@ _PROMO = re.compile(r"[\[\]\(\)](?:official|clip|video|audio|lyrics?|hd|hq|4k|"
 
 
 def _ytdlp_bin() -> str:
+    """Trouve yt-dlp même s'il n'est pas dans le PATH (venv, image Docker)."""
     import shutil
-    return shutil.which("yt-dlp") or "yt-dlp"
+    import sys
+    found = shutil.which("yt-dlp")
+    if found:
+        return found
+    beside_python = Path(sys.executable).parent / "yt-dlp"
+    return str(beside_python) if beside_python.exists() else "yt-dlp"
 
 
 def _run(cmd: list[str], cwd: Path, timeout: int = 600):
@@ -779,9 +859,12 @@ def download_youtube(video: str, track: dict | None = None) -> tuple[str, dict |
 
     try:
         code, out, err = _run(
-            [_ytdlp_bin(), "--no-playlist", "--skip-download", *js_args, "--print",
+            [_ytdlp_bin(), "--no-playlist", "--skip-download", *js_args, *cookies_args(), "--print",
              "%(id)s\n%(title)s\n%(uploader)s\n%(duration)s", url], staging, timeout=180)
         if code != 0:
+            if _age_gate(f"{err or ''} {out or ''}"):
+                return STATUS_ERROR, ("Vidéo réservée aux adultes — YouTube exige une connexion "
+                                      "(déposez un cookies.txt dans /config si nécessaire)")
             return STATUS_ERROR, ("yt-dlp : " + (err or out or "échec").strip().splitlines()[-1])[:300]
         lines = [l.strip() for l in (out or "").splitlines() if l.strip()]
         video_id, yt_title = (lines[0] if lines else ""), (lines[1] if len(lines) > 1 else "")
@@ -823,8 +906,8 @@ def download_youtube(video: str, track: dict | None = None) -> tuple[str, dict |
         if manager.stopping or manager._stop.is_set():
             return STATUS_STOPPED, "interrompu par l'utilisateur"
 
-        dl_args = [_ytdlp_bin(), "--no-playlist", *js_args, "-f", "bestaudio/best",
-                   "-o", "src.%(ext)s", url]
+        dl_args = [_ytdlp_bin(), "--no-playlist", *js_args, *cookies_args(),
+                   "-f", "bestaudio/best", "-o", "src.%(ext)s", url]
         code, out, err = _run(dl_args, staging, timeout=900)
         if code != 0 and "403" in (err or ""):
             # YouTube bloque certains clients : nouvel essai avec une autre extraction
