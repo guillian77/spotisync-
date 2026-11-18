@@ -276,3 +276,14 @@ d'attente**, `running` → **En cours**, `done` → **Terminé**, `dupe` → **D
 `skipped` → **Ignoré**, `stopped` → **Arrêté**. La correspondance vit dans `config.STATUS_LABELS`
 et s'utilise dans les gabarits via `{{ status_label(...) }}`. Les valeurs techniques restent celles
 envoyées au serveur (filtres, URL), seule l'affichage change.
+
+### Panneau de téléchargement (v0.13.0)
+
+- compteurs explicites : **N en cours · N en attente · N terminé(s) · N en échec** (le nombre
+  d'échecs est un lien vers la bibliothèque filtrée sur `status=error`) ;
+- barre **segmentée** : vert = terminés, rouge = échecs, gris = reste à faire, avec le pourcentage
+  global calculé sur les pistes traitées (réussies + échouées) ;
+- **piste en cours** affichée en clair : « Piste 4 sur 7 · Jul — Ce soir » (artiste — titre remonté
+  par spotDL), au lieu de la ligne brute ;
+- **toast de fin de lot** : le poll `/controls` renvoie un en-tête `HX-Trigger` (consommé une seule
+  fois) que la page transforme en toast, sans rechargement.

@@ -3,6 +3,7 @@
 Ce test existe après une régression réelle : la requête de comptage de /library avait perdu
 son alias `t` alors que la clause WHERE utilisait `t.title`, d'où un 500 dès qu'on filtrait.
 """
+import json
 import os
 import sys
 import tempfile
@@ -191,3 +192,39 @@ def test_statuses_are_translated_in_ui():
     assert ">done<" not in html and ">pending<" not in html
     # la valeur envoyée au serveur reste l'identifiant technique
     assert 'value="done"' in html and 'value="pending"' in html
+
+
+def test_download_panel_counts_and_segmented_bar():
+    """Le panneau doit dire en cours / en attente / terminé / échec, avec un % global."""
+    from app.downloader import manager
+    saved = (manager._pool, manager.total, manager.done, manager.failed, manager.current, manager.stopping)
+    try:
+        manager._pool = object()          # simule un lot actif
+        manager.total, manager.done, manager.failed = 7, 2, 1
+        manager.current = ["Jul — Ce soir"]
+        manager.stopping = False
+        html = client.get("/controls").text
+        assert "1 en cours" in html
+        assert "3 en attente" in html        # 7 - 3 traités - 1 en cours
+        assert "2 terminés" in html
+        assert "1 en échec" in html
+        assert "43 %" in html                # (2+1)/7
+        assert "Piste 4 sur 7" in html
+        assert "Jul — Ce soir" in html
+        assert 'href="/library?q=&status=error"' in html
+        assert "bg-rose-500" in html and "bg-emerald-500" in html
+    finally:
+        (manager._pool, manager.total, manager.done, manager.failed,
+         manager.current, manager.stopping) = saved
+
+
+def test_end_of_batch_toast_is_sent_once():
+    from app.downloader import manager
+    manager.notice = {"kind": "ok", "message": "Lot terminé — 6 titre(s) téléchargé(s)"}
+    first = client.get("/controls")
+    assert "HX-Trigger" in first.headers
+    trigger = json.loads(first.headers["HX-Trigger"])
+    assert trigger["spotisync:toast"]["kind"] == "ok"
+    assert "Lot termin" in trigger["spotisync:toast"]["message"]
+    second = client.get("/controls")
+    assert "HX-Trigger" not in second.headers     # consommé : pas de toast à chaque poll

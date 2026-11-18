@@ -111,6 +111,11 @@
     el.addEventListener('mouseleave', function () { timer = setTimeout(function () { dismiss(el); }, 2000); });
   };
 
+  // message poussé par le serveur en cours de session (fin de lot, via HX-Trigger)
+  document.body.addEventListener('spotisync:toast', function (e) {
+    if (e.detail) toast(e.detail.message, e.detail.kind);
+  });
+
   // message poussé par le serveur après une action
   var flash = document.getElementById('flash');
   if (flash) {

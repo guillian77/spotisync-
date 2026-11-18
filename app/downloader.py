@@ -37,6 +37,7 @@ class DownloadManager:
         self._procs: set = set()
         self._procs_lock = threading.Lock()
         self.stopping = False
+        self.notice: dict | None = None      # message de fin de lot, consommé par l'interface
 
     # --- état -------------------------------------------------------------
     def active(self) -> bool:
@@ -50,6 +51,8 @@ class DownloadManager:
             "done": self.done,
             "failed": self.failed,
             "current": self.current[-5:],
+            "current_track": self.current[-1] if self.current else "",
+            "processed": self.done + self.failed,
             "stopping": self.stopping,
         }
 
@@ -125,6 +128,18 @@ class DownloadManager:
             status = "stopped" if stopped else "done"
             db.run_finish(self.run_id, status,
                           f"{self.done} réussis, {self.failed} échecs")
+        # message à afficher en toast au prochain rafraîchissement du panneau
+        if stopped:
+            self.notice = {"kind": "info",
+                           "message": f"Lot interrompu — {self.done} terminé(s), {self.failed} échec(s)"}
+        elif self.failed and not self.done:
+            self.notice = {"kind": "err",
+                           "message": f"Lot terminé en échec — {self.failed} titre(s) non téléchargé(s)"}
+        elif self.failed:
+            self.notice = {"kind": "info",
+                           "message": f"Lot terminé — {self.done} réussi(s), {self.failed} échec(s)"}
+        else:
+            self.notice = {"kind": "ok", "message": f"Lot terminé — {self.done} titre(s) téléchargé(s)"}
         if not stopped:
             try:
                 from . import notify

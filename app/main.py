@@ -381,7 +381,12 @@ def download_retry():
 
 @app.get("/controls", response_class=HTMLResponse)
 def controls(request: Request):
-    return render(request, "_controls.html")
+    response = render(request, "_controls.html")
+    notice = manager.notice
+    if notice:                      # consommé une seule fois : pas de toast à chaque poll
+        manager.notice = None
+        response.headers["HX-Trigger"] = json.dumps({"spotisync:toast": notice})
+    return response
 
 
 @app.get("/progress", response_class=HTMLResponse)

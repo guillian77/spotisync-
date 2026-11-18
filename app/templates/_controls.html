@@ -18,15 +18,37 @@
     Téléchargement en cours
   </span>
   {% endif %}
-  <span class="text-slate-400">{{ manager.done }} / {{ manager.total }} terminés{% if manager.failed %} · <span class="text-rose-300">{{ manager.failed }} échec(s)</span>{% endif %}</span>
+  {% set processed = manager.done + manager.failed %}
+  {% set running = 1 if (manager.active and not manager.stopping and processed < manager.total) else 0 %}
+  {% set waiting = [manager.total - processed - running, 0]|max %}
+  <span class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+    {% if running %}<span class="text-sky-300">{{ running }} en cours</span>{% endif %}
+    <span class="text-slate-400">{{ waiting }} en attente</span>
+    <span class="text-emerald-300">{{ manager.done }} terminé{{ 's' if manager.done > 1 }}</span>
+    {% if manager.failed %}
+      <a href="/library?q=&status=error" class="text-rose-300 hover:text-rose-200 underline decoration-rose-700 underline-offset-2"
+         title="Voir les titres en échec dans la bibliothèque">{{ manager.failed }} en échec</a>
+    {% endif %}
+  </span>
 </div>
-{% set pct = (manager.done * 100 / manager.total) if manager.total else 0 %}
-<div class="mt-2 h-2 rounded bg-slate-800 overflow-hidden">
-  <div class="h-full bg-emerald-500 transition-all" style="width: {{ '%.1f'|format(pct) }}%"></div>
+
+{% set pct_done = (manager.done * 100 / manager.total) if manager.total else 0 %}
+{% set pct_fail = (manager.failed * 100 / manager.total) if manager.total else 0 %}
+<div class="mt-2 flex items-center gap-3">
+  <div class="flex-1 h-2 rounded bg-slate-800 overflow-hidden flex" role="progressbar"
+       aria-valuemin="0" aria-valuemax="{{ manager.total }}" aria-valuenow="{{ processed }}"
+       aria-label="{{ processed }} piste(s) traitée(s) sur {{ manager.total }}">
+    <div class="h-full bg-emerald-500 transition-all" style="width: {{ '%.1f'|format(pct_done) }}%"></div>
+    <div class="h-full bg-rose-500 transition-all" style="width: {{ '%.1f'|format(pct_fail) }}%"></div>
+  </div>
+  <span class="text-xs tabular-nums text-slate-400 shrink-0">{{ '%.0f'|format(pct_done + pct_fail) }} %</span>
 </div>
-{% if manager.current %}
-<div class="mt-1 text-xs text-slate-500 truncate">{{ manager.current[-1] }}</div>
-{% endif %}
+<div class="mt-1.5 flex flex-wrap items-baseline gap-x-2 text-xs text-slate-500">
+  <span>Piste {{ [processed + 1, manager.total]|min }} sur {{ manager.total }}</span>
+  {% if manager.current_track %}
+  <span class="text-slate-400 truncate max-w-full">· {{ manager.current_track }}</span>
+  {% endif %}
+</div>
 {% elif scan.active %}
 <div class="flex flex-wrap items-center gap-3 text-sm">
   <span class="inline-flex items-center gap-2 rounded-full bg-sky-900/40 border border-sky-700/60 px-3 py-1 text-sky-300">
