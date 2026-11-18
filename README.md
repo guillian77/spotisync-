@@ -136,14 +136,14 @@ Arborescence : `app/{config,db,spotify,sync,downloader,metadata,main}.py`,
 
 Chaque ligne de la bibliothèque propose deux actions :
 
-- **Relancer** — l'ancien fichier part en **quarantaine** (`_doublons/`, donc récupérable depuis la
+- **Corriger** — l'app retente une autre source : l'ancien fichier part en **quarantaine** (`_doublons/`, donc récupérable depuis la
   page Doublons), la piste repasse en `pending`, puis le téléchargement repart. Les vidéos déjà
   refusées pour cette piste sont **écartées d'office** : la vidéo candidate est résolue par
   `spotdl url` *avant* tout téléchargement, donc on ne retélécharge pas deux fois la même
   mauvaise version.
-- **Remplacer** (`/search?track=<id>`) — vous collez le lien de la vidéo YouTube voulue ; l'ancien
+- **Améliorer** (`/search?track=<id>`) — vous choisissez vous-même la vidéo YouTube ; l'ancien
   fichier part en quarantaine et les tags Spotify de la piste sont conservés.
-- **Supprimer** — retire la piste de la bibliothèque (fiche + liens de playlist + sources
+- **Supprimer** (icône corbeille) — retire la piste de la bibliothèque (fiche + liens de playlist + sources
   écartées). Le fichier, lui, part en **quarantaine**, jamais à la poubelle.
 
 Les refus sont mémorisés dans la table `rejected_sources` (vidéo + motif : version live, écart de

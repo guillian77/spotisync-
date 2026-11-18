@@ -34,7 +34,7 @@
   {% elif result.kind == 'replace' and result.replace_track %}
   {% set t = result.replace_track %}
   <div class="rounded-xl border border-amber-800 bg-amber-950/20 p-4">
-    <div class="text-sm text-white mb-1">Remplacer un fichier existant</div>
+    <div class="text-sm text-white mb-1">Améliorer un fichier existant</div>
     <div class="text-xs text-slate-400 mb-3">
       {{ t.artists }} — {{ t.title }}{% if t.album %} · {{ t.album }}{% endif %}<br>
       L'ancien fichier part en quarantaine, les tags Spotify de la piste sont conservés.
@@ -46,12 +46,12 @@
                class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 text-sm font-mono">
       </label>
       <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2">
-        Remplacer par cette vidéo
+        Utiliser cette vidéo
       </button>
     </form>
     <form method="post" action="/library/{{ t.id }}/redownload" class="mt-3">
       <button class="text-xs rounded px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300">
-        Ou simplement relancer la recherche (les vidéos déjà écartées sont ignorées)
+        Ou laisser l'app corriger seule (autre source, vidéos déjà écartées ignorées)
       </button>
     </form>
   </div>

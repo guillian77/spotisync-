@@ -60,7 +60,8 @@ def test_library_status_filter():
 
 def test_library_actions_present():
     r = client.get("/library", params={"q": "orphelin"})
-    assert "Relancer" in r.text and "Remplacer" in r.text and "Supprimer" in r.text
+    assert "Corriger" in r.text and "Améliorer" in r.text
+    assert 'aria-label="Supprimer"' in r.text
 
 
 def test_search_page_and_local_search():
@@ -74,7 +75,7 @@ def test_search_replace_card():
     tid = db.q1("SELECT id FROM tracks WHERE spotify_id='r1'")["id"]
     r = client.get("/search", params={"track": tid})
     assert r.status_code == 200
-    assert "Remplacer un fichier existant" in r.text
+    assert "Améliorer un fichier existant" in r.text
 
 
 def test_other_pages():
