@@ -26,7 +26,7 @@
           hx-push-url="true" hx-indicator="#lib-spin" hx-sync="closest form:replace">
     <option value="">Tous les statuts</option>
     {% for s in ['pending','queued','running','done','dupe','error'] %}
-    <option value="{{ s }}" {{ 'selected' if status == s }}>{{ s }}</option>
+    <option value="{{ s }}" {{ 'selected' if status == s }}>{{ status_label(s) }}</option>
     {% endfor %}
   </select>
   <span id="lib-spin" class="htmx-indicator text-xs text-slate-500">recherche…</span>

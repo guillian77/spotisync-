@@ -268,3 +268,11 @@ La bibliothèque se filtre **sans appuyer sur « Filtrer »** :
 - Styles des toasts dans `app/static/app.css` (et non via Tailwind CDN, qui ne génère pas les
   classes des éléments créés dynamiquement) ; la feuille est versionnée (`app.css?v=<version>`)
   pour éviter le cache après mise à jour.
+
+### Statuts lisibles (v0.12.1)
+
+Les valeurs internes ne sont plus affichées : `pending` → **En attente**, `queued` → **En file
+d'attente**, `running` → **En cours**, `done` → **Terminé**, `dupe` → **Doublon**, `error` → **Échec**,
+`skipped` → **Ignoré**, `stopped` → **Arrêté**. La correspondance vit dans `config.STATUS_LABELS`
+et s'utilise dans les gabarits via `{{ status_label(...) }}`. Les valeurs techniques restent celles
+envoyées au serveur (filtres, URL), seule l'affichage change.

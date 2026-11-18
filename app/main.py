@@ -21,6 +21,14 @@ BASE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 
 
+def status_label(value: str) -> str:
+    """Statut interne -> libellé affichable (« done » -> « Terminé »)."""
+    return config.STATUS_LABELS.get((value or "").lower(), value or "")
+
+
+templates.env.globals["status_label"] = status_label
+
+
 @app.on_event("startup")
 def _startup() -> None:
     config.ensure_dirs()

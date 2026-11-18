@@ -95,7 +95,7 @@
         <span class="truncate text-slate-300">{{ r.kind }}</span>
         <span class="text-xs shrink-0
           {{ 'text-emerald-400' if r.status == 'done' else 'text-rose-400' if r.status in ('error','stopped') else 'text-sky-400' }}">
-          {{ r.status }} · {{ r.done }}/{{ r.total }}{% if r.failed %} · {{ r.failed }} échecs{% endif %}
+          {{ status_label(r.status) }} · {{ r.done }}/{{ r.total }}{% if r.failed %} · {{ r.failed }} échecs{% endif %}
         </span>
       </li>
       {% else %}

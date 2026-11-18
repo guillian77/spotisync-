@@ -137,7 +137,7 @@
             </td>
             <td class="px-3 py-2 text-right">
               <span class="text-xs rounded px-2 py-0.5 {{ 'bg-emerald-900/60 text-emerald-300' if t.status == 'done'
-                 else 'bg-rose-900/60 text-rose-300' if t.status == 'error' else 'bg-slate-800 text-slate-300' }}">{{ t.status }}</span>
+                 else 'bg-rose-900/60 text-rose-300' if t.status == 'error' else 'bg-slate-800 text-slate-300' }}">{{ status_label(t.status) }}</span>
             </td>
           </tr>
           {% endfor %}

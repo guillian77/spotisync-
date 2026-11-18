@@ -8,7 +8,7 @@ def _env(key: str, default: str = "") -> str:
 
 
 APP_NAME = "Spotisync"
-VERSION = "0.12.0"
+VERSION = "0.12.1"
 
 CONFIG_DIR = Path(_env("SPOTISYNC_CONFIG", "/config"))
 DEFAULT_MUSIC_DIR = _env("SPOTISYNC_MUSIC", "/music")
@@ -58,3 +58,16 @@ BITRATES = ["320k", "256k", "192k", "160k", "128k", "auto"]
 def ensure_dirs() -> None:
     for d in (CONFIG_DIR, STAGING_DIR, LOG_DIR):
         Path(d).mkdir(parents=True, exist_ok=True)
+
+# Libellés lisibles des statuts internes (l'interface ne montre jamais la valeur brute).
+STATUS_LABELS = {
+    "pending": "En attente",
+    "queued": "En file d'attente",
+    "running": "En cours",
+    "done": "Terminé",
+    "dupe": "Doublon",
+    "error": "Échec",
+    "skipped": "Ignoré",
+    "stopped": "Arrêté",
+    "stopping": "Arrêt en cours",
+}

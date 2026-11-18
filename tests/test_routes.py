@@ -179,3 +179,15 @@ def test_server_message_becomes_a_toast():
 def test_scan_count_message_is_a_toast():
     r = client.get("/library", params={"scanned": "12"})
     assert 'data-flash="12 fichier(s) indexé(s)."' in r.text
+
+
+def test_statuses_are_translated_in_ui():
+    """L'interface ne doit jamais afficher la valeur interne brute (done, pending…)."""
+    html = client.get("/library").text
+    assert "Terminé" in html                  # badge de la piste « done »
+    assert "En attente" in html               # option de la liste
+    assert "En file d" in html   # apostrophe échappée par Jinja
+    assert "Échec" in html
+    assert ">done<" not in html and ">pending<" not in html
+    # la valeur envoyée au serveur reste l'identifiant technique
+    assert 'value="done"' in html and 'value="pending"' in html
