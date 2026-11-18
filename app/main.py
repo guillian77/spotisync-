@@ -250,6 +250,24 @@ def library_scan():
 
 
 
+@app.post("/library/{tid}/delete")
+def library_delete(tid: int):
+    row = db.q1("SELECT * FROM tracks WHERE id=?", (tid,))
+    if row is None:
+        return RedirectResponse("/library?q=&status=", status_code=303)
+    old = row["file_path"]
+    moved = False
+    if old and Path(old).exists():
+        moved = downloader.quarantine([old]) > 0  # le fichier reste récupérable
+    db.qx("DELETE FROM rejected_sources WHERE track_id=?", (tid,))
+    db.qx("DELETE FROM playlist_tracks WHERE track_id=?", (tid,))
+    db.qx("DELETE FROM tracks WHERE id=?", (tid,))
+    msg = f"« {row['title']} » supprimée de la bibliothèque"
+    if moved:
+        msg += " · fichier déplacé en quarantaine"
+    return RedirectResponse("/library?q=&status=&redl=" + quote_plus(msg), status_code=303)
+
+
 @app.post("/library/{tid}/redownload")
 def library_redownload(tid: int):
     row = db.q1("SELECT * FROM tracks WHERE id=?", (tid,))

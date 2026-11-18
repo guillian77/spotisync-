@@ -143,6 +143,8 @@ Chaque ligne de la bibliothèque propose deux actions :
   mauvaise version.
 - **Remplacer** (`/search?track=<id>`) — vous collez le lien de la vidéo YouTube voulue ; l'ancien
   fichier part en quarantaine et les tags Spotify de la piste sont conservés.
+- **Supprimer** — retire la piste de la bibliothèque (fiche + liens de playlist + sources
+  écartées). Le fichier, lui, part en **quarantaine**, jamais à la poubelle.
 
 Les refus sont mémorisés dans la table `rejected_sources` (vidéo + motif : version live, écart de
 durée). Le compteur `N écartée(s)` s'affiche à côté de la piste.

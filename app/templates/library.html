@@ -81,6 +81,11 @@
           <a href="/search?track={{ t.id }}"
              class="text-xs rounded px-2 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300"
              title="Remplacer par une vidéo YouTube précise">Remplacer</a>
+          <form method="post" action="/library/{{ t.id }}/delete" class="inline"
+                onsubmit="return confirm('Supprimer « {{ t.title|e }} » de la bibliothèque ? Le fichier part en quarantaine, rien n\'est effacé définitivement.')">
+            <button class="text-xs rounded px-2 py-1 bg-slate-800 hover:bg-rose-900/60 text-rose-300"
+                    title="Retirer de la bibliothèque (fichier en quarantaine)">Supprimer</button>
+          </form>
           {% if t.rejected %}<span class="text-[10px] text-amber-400 ml-1">{{ t.rejected }} écartée(s)</span>{% endif %}
         </td>
       </tr>
