@@ -367,15 +367,58 @@ def _run_spotdl(query: str, staging: Path, fmt: str, bitrate: str):
     return audio, out, err, code, interrupted
 
 
+_YT_ID_IN_URL = re.compile(r"(?:[?&]v=|youtu\.be/|/shorts/|/embed/)([A-Za-z0-9_-]{11})")
+
+
+def resolve_video(query: str, staging: Path) -> str:
+    """Identifiant de la vidéo YouTube que spotDL choisirait, SANS rien télécharger."""
+    code, out, err = _run([SPOTDL_BIN, "url", query], staging, timeout=150)
+    if code != 0:
+        return ""
+    match = _YT_ID_IN_URL.search(out or "")
+    return match.group(1) if match else ""
+
+
+def rejected_sources(track_id: int) -> set[str]:
+    if not track_id:
+        return set()
+    try:
+        return {r["source_id"] for r in
+                db.q("SELECT source_id FROM rejected_sources WHERE track_id=?", (track_id,))}
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def reject_source(track_id: int, source_id: str, kind: str, reason: str) -> None:
+    if not track_id or not source_id:
+        return
+    try:
+        db.qx("INSERT INTO rejected_sources(track_id,source_id,kind,reason,created_at) "
+              "VALUES(?,?,?,?,?) ON CONFLICT(track_id,source_id) DO UPDATE SET "
+              "reason=excluded.reason, created_at=excluded.created_at",
+              (track_id, source_id, kind, reason[:200],
+               time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())))
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def download_one(track: dict) -> tuple[str, dict | str]:
     staging = Path(STAGING_DIR) / str(track.get("spotify_id") or "unknown")
     fmt = db.setting("audio_format", "mp3")
     bitrate = db.setting("audio_bitrate", "320k")
     reasons: list[str] = []
 
+    track_id = int(track.get("id") or 0)
+    blacklist = rejected_sources(track_id)
+
     for kind, query in _candidates(track):
         shutil.rmtree(staging, ignore_errors=True)
         staging.mkdir(parents=True, exist_ok=True)
+        if kind != "spotify":
+            video = resolve_video(query, staging)
+            if video and video in blacklist:
+                reasons.append(f"{kind} : vidéo {video} déjà écartée")
+                continue
         audio, out, err, code, interrupted = _run_spotdl(query, staging, fmt, bitrate)
         if interrupted:
             shutil.rmtree(staging, ignore_errors=True)
@@ -391,9 +434,14 @@ def download_one(track: dict) -> tuple[str, dict | str]:
 
         # --- contrôle du candidat : durée et version live -------------------
         name = _result_name(out)
+        video_id = ""
+        m_url = re.search(r"youtu(?:\.be/|be\.com/watch\?v=)([A-Za-z0-9_-]{11})", out or "")
+        if m_url:
+            video_id = m_url.group(1)
         keyword = _alternate_version(name, track.get("title") or "")
         if keyword:
             reasons.append(f"{kind} : « {name} » semble une version {keyword}")
+            reject_source(track_id, video_id, kind, f"version {keyword}")
             shutil.rmtree(staging, ignore_errors=True)
             continue
         info = metadata.read_tags(audio)
@@ -403,6 +451,7 @@ def download_one(track: dict) -> tuple[str, dict | str]:
                                           int(track.get("duration_ms") or 0))
         if too_far:
             reasons.append(f"{kind} : durée {delta:.0f} s d'écart")
+            reject_source(track_id, video_id, kind, f"durée {delta:.0f} s d'écart")
             shutil.rmtree(staging, ignore_errors=True)
             continue
 

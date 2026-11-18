@@ -97,6 +97,15 @@ CREATE TABLE IF NOT EXISTS files (
 );
 CREATE INDEX IF NOT EXISTS idx_files_isrc ON files(isrc);
 
+CREATE TABLE IF NOT EXISTS rejected_sources (
+    track_id   INTEGER NOT NULL,
+    source_id  TEXT NOT NULL,
+    kind       TEXT,
+    reason     TEXT,
+    created_at TEXT,
+    PRIMARY KEY (track_id, source_id)
+);
+
 CREATE TABLE IF NOT EXISTS runs (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     kind        TEXT NOT NULL,

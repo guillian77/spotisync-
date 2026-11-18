@@ -30,6 +30,11 @@
   {{ request.query_params.get('scanned') }} fichier(s) indexé(s).
 </div>
 {% endif %}
+{% if request.query_params.get('redl') %}
+<div class="mb-4 rounded-lg border border-sky-700 bg-sky-900/30 px-4 py-3 text-sm text-sky-100">
+  {{ request.query_params.get('redl') }} — lancez le téléchargement depuis le tableau de bord.
+</div>
+{% endif %}
 {% if request.query_params.get('scan_err') %}
 <div class="mb-4 rounded-lg border border-rose-700 bg-rose-900/30 px-4 py-3 text-sm text-rose-200">
   {{ request.query_params.get('scan_err') }}
@@ -44,6 +49,7 @@
         <th class="text-left px-3 py-2 hidden md:table-cell">Album</th>
         <th class="text-left px-3 py-2 hidden lg:table-cell">Ajouté</th>
         <th class="text-right px-3 py-2">Statut</th>
+        <th class="text-right px-3 py-2">Actions</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-slate-800/70">
@@ -62,9 +68,24 @@
                else 'bg-rose-900/60 text-rose-300' if t.status == 'error'
                else 'bg-slate-800 text-slate-300' }}">{{ t.status }}</span>
         </td>
+        <td class="px-3 py-2 text-right whitespace-nowrap">
+          {% if t.status == 'done' %}
+          <form method="post" action="/library/{{ t.id }}/redownload" class="inline"
+                onsubmit="return confirm('Relancer le téléchargement de « {{ t.title|e }} » ? L\'ancien fichier part en quarantaine.')">
+            <button class="text-xs rounded px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200"
+                    title="Relancer le téléchargement{% if t.rejected %} ({{ t.rejected }} vidéo(s) déjà écartée(s)){% endif %}">
+              Relancer
+            </button>
+          </form>
+          {% endif %}
+          <a href="/search?track={{ t.id }}"
+             class="text-xs rounded px-2 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300"
+             title="Remplacer par une vidéo YouTube précise">Remplacer</a>
+          {% if t.rejected %}<span class="text-[10px] text-amber-400 ml-1">{{ t.rejected }} écartée(s)</span>{% endif %}
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">Aucun résultat.</td></tr>
+      <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">Aucun résultat.</td></tr>
       {% endfor %}
     </tbody>
   </table>

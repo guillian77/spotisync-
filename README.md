@@ -132,13 +132,28 @@ SPOTISYNC_CONFIG=./data SPOTISYNC_MUSIC=./music .venv/bin/uvicorn app.main:app -
 Arborescence : `app/{config,db,spotify,sync,downloader,metadata,main}.py`,
 `app/templates/*.html` (Jinja2 + Tailwind/HTMX via CDN), `unraid/` (template + icône).
 
+## Bibliothèque : relancer ou remplacer une piste
+
+Chaque ligne de la bibliothèque propose deux actions :
+
+- **Relancer** — l'ancien fichier part en **quarantaine** (`_doublons/`, donc récupérable depuis la
+  page Doublons), la piste repasse en `pending`, puis le téléchargement repart. Les vidéos déjà
+  refusées pour cette piste sont **écartées d'office** : la vidéo candidate est résolue par
+  `spotdl url` *avant* tout téléchargement, donc on ne retélécharge pas deux fois la même
+  mauvaise version.
+- **Remplacer** (`/search?track=<id>`) — vous collez le lien de la vidéo YouTube voulue ; l'ancien
+  fichier part en quarantaine et les tags Spotify de la piste sont conservés.
+
+Les refus sont mémorisés dans la table `rejected_sources` (vidéo + motif : version live, écart de
+durée). Le compteur `N écartée(s)` s'affiche à côté de la piste.
+
 ## Recherche unifiée
 
 Champ de recherche sur le tableau de bord (et page `/search`), avec détection automatique :
 
 | Saisie | Comportement |
 |---|---|
-| nom de titre / artiste / album | recherche locale dans la base (statut et motif d'erreur visibles) |
+| nom de titre / artiste / album | recherche locale dans la base (statut, motif d'erreur, actions Relancer/Remplacer) |
 | nom de playlist | recherche locale parmi les playlists connues |
 | ID (22 car.) ou URL de playlist Spotify | lecture de la page d'intégration publique — **sans API ni Premium** — puis import ; limité aux **50 premiers titres** |
 | ID (11 car.) ou URL de vidéo YouTube | téléchargement de **cette vidéo exacte** via yt-dlp, avec option « remplacer un titre en échec » (les tags Spotify priment) |

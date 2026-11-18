@@ -226,14 +226,15 @@ def library(request: Request, q: str = "", status: str = "", page: int = 1):
     per = 50
     where, args = [], []
     if q:
-        where.append("(title LIKE ? OR artists LIKE ? OR album LIKE ?)")
+        where.append("(t.title LIKE ? OR t.artists LIKE ? OR t.album LIKE ?)")
         args += [f"%{q}%"] * 3
     if status:
-        where.append("status = ?")
+        where.append("t.status = ?")
         args.append(status)
     clause = ("WHERE " + " AND ".join(where)) if where else ""
     total = db.q1(f"SELECT COUNT(*) c FROM tracks {clause}", tuple(args))["c"]
-    rows = db.q(f"SELECT * FROM tracks {clause} ORDER BY artists, title "
+    rows = db.q(f"SELECT t.*, (SELECT COUNT(*) FROM rejected_sources r WHERE r.track_id=t.id) "
+                f"AS rejected FROM tracks t {clause} ORDER BY t.artists, t.title "
                 f"LIMIT {per} OFFSET {(page - 1) * per}", tuple(args))
     pages = max(1, (total + per - 1) // per)
     return render(request, "library.html", tracks=rows, q=q, status=status,
@@ -246,6 +247,28 @@ def library_scan():
     if not started:
         return RedirectResponse("/?msg=Analyse%20d%C3%A9j%C3%A0%20en%20cours", status_code=303)
     return RedirectResponse("/?msg=Analyse%20du%20dossier%20musique%20lanc%C3%A9e", status_code=303)
+
+
+
+@app.post("/library/{tid}/redownload")
+def library_redownload(tid: int):
+    row = db.q1("SELECT * FROM tracks WHERE id=?", (tid,))
+    if row is None:
+        return RedirectResponse("/library?q=&status=", status_code=303)
+    old = row["file_path"]
+    moved = False
+    if old and Path(old).exists():
+        moved = downloader.quarantine([old]) > 0  # réversible depuis la page Doublons
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    db.qx("UPDATE tracks SET status='pending', file_path=NULL, file_size=NULL, error=NULL,"
+          " attempts=0, updated_at=? WHERE id=?", (now, tid))
+    rejected = len(downloader.rejected_sources(tid))
+    msg = f"« {row['title']} » remise en attente"
+    if moved:
+        msg += " · ancien fichier en quarantaine"
+    if rejected:
+        msg += f" · {rejected} vidéo(s) déjà écartée(s) seront ignorées"
+    return RedirectResponse("/library?q=&status=&redl=" + quote_plus(msg), status_code=303)
 
 
 @app.get("/duplicates", response_class=HTMLResponse)
@@ -375,9 +398,14 @@ async def import_upload(file: UploadFile = File(...), name: str = Form("")):
 # --- recherche unifiée -----------------------------------------------------
 
 @app.get("/search", response_class=HTMLResponse)
-def search_page(request: Request, q: str = ""):
+def search_page(request: Request, q: str = "", track: int = 0):
     kind, value = search.detect(q) if q.strip() else ("text", "")
     result: dict = {"kind": kind}
+    if track:
+        row = db.q1("SELECT * FROM tracks WHERE id=?", (track,))
+        if row:
+            result["replace_track"] = dict(row)
+            result["kind"] = "replace"
     if kind == "text" and q.strip():
         result.update(search.search_local(value))
     elif kind == "spotify_playlist":
@@ -401,6 +429,8 @@ def search_page(request: Request, q: str = ""):
 @app.post("/search/youtube")
 def search_youtube(video: str = Form(...), track_id: str = Form("")):
     track = db.q1("SELECT * FROM tracks WHERE id=?", (int(track_id),)) if track_id.strip() else None
+    if track is not None and track["file_path"] and Path(track["file_path"]).exists():
+        downloader.quarantine([track["file_path"]])  # remplacement : l'ancien fichier reste récupérable
     status, detail = downloader.download_youtube(video, dict(track) if track else None)
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     if track is None and status == downloader.STATUS_DONE:
