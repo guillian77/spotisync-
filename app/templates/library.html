@@ -69,21 +69,20 @@
                else 'bg-slate-800 text-slate-300' }}">{{ t.status }}</span>
         </td>
         <td class="px-3 py-2 text-right whitespace-nowrap">
+          <div class="flex items-center justify-end gap-1">
           {% if t.status == 'done' %}
-          <form method="post" action="/library/{{ t.id }}/redownload" class="inline"
+          <form method="post" action="/library/{{ t.id }}/redownload" class="m-0"
                 onsubmit="return confirm('Corriger « {{ t.title|e }} » ? L\'app retente une autre source, l\'ancien fichier part en quarantaine.')">
-            <button class="text-xs rounded px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200"
-                    title="Retenter avec une autre source{% if t.rejected %} — {{ t.rejected }} vidéo(s) déjà écartée(s){% endif %}">
-              Corriger
-            </button>
+            <button class="inline-flex items-center h-7 px-2 text-xs leading-none rounded bg-slate-800 hover:bg-slate-700 text-slate-200"
+                    title="Retenter avec une autre source{% if t.rejected %} — {{ t.rejected }} vidéo(s) déjà écartée(s){% endif %}">Corriger</button>
           </form>
           {% endif %}
           <a href="/search?track={{ t.id }}"
-             class="text-xs rounded px-2 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300"
+             class="inline-flex items-center h-7 px-2 text-xs leading-none rounded bg-slate-800 hover:bg-slate-700 text-emerald-300"
              title="Choisir soi-même la vidéo YouTube (qualité ou version)">Améliorer</a>
-          <form method="post" action="/library/{{ t.id }}/delete" class="inline"
+          <form method="post" action="/library/{{ t.id }}/delete" class="m-0"
                 onsubmit="return confirm('Retirer « {{ t.title|e }} » de la bibliothèque ? Le fichier part en quarantaine, rien n\'est effacé définitivement.')">
-            <button class="rounded px-2 py-1 bg-slate-800 hover:bg-rose-900/70 text-rose-400 hover:text-rose-300"
+            <button class="inline-flex items-center justify-center h-7 w-7 rounded bg-slate-800 hover:bg-rose-900/70 text-rose-400 hover:text-rose-300"
                     title="Supprimer de la bibliothèque (fichier en quarantaine)" aria-label="Supprimer">
               <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"
                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -94,6 +93,7 @@
             </button>
           </form>
           {% if t.rejected %}<span class="text-[10px] text-amber-400 ml-1">{{ t.rejected }} écartée(s)</span>{% endif %}
+          </div>
         </td>
       </tr>
       {% else %}

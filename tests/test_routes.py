@@ -62,6 +62,9 @@ def test_library_actions_present():
     r = client.get("/library", params={"q": "orphelin"})
     assert "Corriger" in r.text and "Améliorer" in r.text
     assert 'aria-label="Supprimer"' in r.text
+    # les trois actions partagent la même hauteur de boîte, sinon l'icône se décale
+    assert r.text.count("h-7 px-2") == 2 and "h-7 w-7" in r.text
+    assert 'class="flex items-center justify-end gap-1"' in r.text
 
 
 def test_search_page_and_local_search():
