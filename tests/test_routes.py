@@ -121,3 +121,31 @@ def test_delete_removes_track_and_quarantines_file():
 def test_delete_unknown_track_is_harmless():
     r = client.post("/library/999999/delete", follow_redirects=False)
     assert r.status_code == 303
+
+
+def test_library_htmx_returns_fragment_only():
+    """Le filtre en direct ne doit recevoir que le tableau, pas la page entière."""
+    r = client.get("/library", params={"q": "orphelin"}, headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert "<html" not in r.text.lower()
+    assert "<table" in r.text and "Fichier orphelin" in r.text
+    assert "piste(s) correspondant au filtre" in r.text   # le compteur voyage avec le fragment
+
+
+def test_library_form_is_live_without_spamming():
+    """Délai anti-spam sur la saisie, instantané sur le statut, et annulation des requêtes obsolètes."""
+    html = client.get("/library").text
+    assert 'hx-trigger="input changed delay:350ms, search"' in html
+    assert 'hx-trigger="change"' in html
+    assert 'hx-sync="closest form:replace"' in html
+    assert 'hx-target="#library-results"' in html
+    assert 'id="library-results"' in html
+
+
+def test_delete_keeps_current_filters():
+    tid = db.qx("INSERT INTO tracks(spotify_id,title,artists,status) VALUES('del2','A garder','Test','done')")
+    r = client.post(f"/library/{tid}/delete", data={"q": "orphelin", "status": "done"},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    loc = r.headers["location"]
+    assert "q=orphelin" in loc and "status=done" in loc

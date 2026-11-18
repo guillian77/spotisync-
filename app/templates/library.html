@@ -4,7 +4,6 @@
 <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
   <div>
     <h1 class="text-xl font-semibold text-white">Bibliothèque</h1>
-    <p class="text-sm text-slate-400">{{ total }} piste(s) correspondant au filtre.</p>
   </div>
   <div class="flex gap-2">
     <form method="post" action="/library/scan">
@@ -13,15 +12,24 @@
   </div>
 </div>
 
-<form method="get" action="/library" class="flex flex-wrap gap-2 mb-5 text-sm">
-  <input name="q" value="{{ q }}" placeholder="Titre, artiste, album…"
-         class="flex-1 min-w-48 rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
-  <select name="status" class="rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
+<form method="get" action="/library" class="flex flex-wrap items-center gap-2 mb-5 text-sm"
+      hx-get="/library" hx-target="#library-results" hx-swap="innerHTML"
+      hx-push-url="true" hx-indicator="#lib-spin">
+  <input name="q" value="{{ q }}" placeholder="Titre, artiste, album…" autocomplete="off"
+         class="flex-1 min-w-48 rounded-md bg-slate-800 border border-slate-700 px-3 py-2"
+         hx-get="/library" hx-trigger="input changed delay:350ms, search"
+         hx-target="#library-results" hx-swap="innerHTML" hx-include="closest form"
+         hx-push-url="true" hx-indicator="#lib-spin" hx-sync="closest form:replace">
+  <select name="status" class="rounded-md bg-slate-800 border border-slate-700 px-3 py-2"
+          hx-get="/library" hx-trigger="change"
+          hx-target="#library-results" hx-swap="innerHTML" hx-include="closest form"
+          hx-push-url="true" hx-indicator="#lib-spin" hx-sync="closest form:replace">
     <option value="">Tous les statuts</option>
     {% for s in ['pending','queued','running','done','dupe','error'] %}
     <option value="{{ s }}" {{ 'selected' if status == s }}>{{ s }}</option>
     {% endfor %}
   </select>
+  <span id="lib-spin" class="htmx-indicator text-xs text-slate-500">recherche…</span>
   <button class="rounded-md bg-slate-700 hover:bg-slate-600 px-4 py-2">Filtrer</button>
 </form>
 
@@ -41,78 +49,7 @@
 </div>
 {% endif %}
 
-<div class="rounded-xl border border-slate-800 overflow-hidden">
-  <table class="w-full text-sm">
-    <thead class="bg-slate-900 text-xs uppercase text-slate-500">
-      <tr>
-        <th class="text-left px-3 py-2">Titre</th>
-        <th class="text-left px-3 py-2 hidden md:table-cell">Album</th>
-        <th class="text-left px-3 py-2 hidden lg:table-cell">Ajouté</th>
-        <th class="text-right px-3 py-2">Statut</th>
-        <th class="text-right px-3 py-2">Actions</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-slate-800/70">
-      {% for t in tracks %}
-      <tr class="hover:bg-slate-900/60">
-        <td class="px-3 py-2">
-          <div class="text-white truncate max-w-md">{{ t.title }}</div>
-          <div class="text-xs text-slate-500 truncate max-w-md">{{ t.artists }}</div>
-          {% if t.error %}<div class="text-xs text-rose-400 truncate max-w-md">{{ t.error }}</div>{% endif %}
-        </td>
-        <td class="px-3 py-2 text-slate-400 hidden md:table-cell truncate max-w-56">{{ t.album }}</td>
-        <td class="px-3 py-2 text-slate-500 text-xs hidden lg:table-cell">{{ (t.added_at or '')[:10] }}</td>
-        <td class="px-3 py-2 text-right">
-          <span class="text-xs rounded px-2 py-0.5
-            {{ 'bg-emerald-900/60 text-emerald-300' if t.status == 'done'
-               else 'bg-rose-900/60 text-rose-300' if t.status == 'error'
-               else 'bg-slate-800 text-slate-300' }}">{{ t.status }}</span>
-        </td>
-        <td class="px-3 py-2 text-right whitespace-nowrap">
-          <div class="flex items-center justify-end gap-1">
-          {% if t.status == 'done' %}
-          <form method="post" action="/library/{{ t.id }}/redownload" class="m-0"
-                onsubmit="return confirm('Corriger « {{ t.title|e }} » ? L\'app retente une autre source, l\'ancien fichier part en quarantaine.')">
-            <button class="inline-flex items-center h-7 px-2 text-xs leading-none rounded bg-slate-800 hover:bg-slate-700 text-slate-200"
-                    title="Retenter avec une autre source{% if t.rejected %} — {{ t.rejected }} vidéo(s) déjà écartée(s){% endif %}">Corriger</button>
-          </form>
-          {% endif %}
-          <a href="/search?track={{ t.id }}"
-             class="inline-flex items-center h-7 px-2 text-xs leading-none rounded bg-slate-800 hover:bg-slate-700 text-emerald-300"
-             title="Choisir soi-même la vidéo YouTube (qualité ou version)">Améliorer</a>
-          <form method="post" action="/library/{{ t.id }}/delete" class="m-0"
-                onsubmit="return confirm('Retirer « {{ t.title|e }} » de la bibliothèque ? Le fichier part en quarantaine, rien n\'est effacé définitivement.')">
-            <button class="inline-flex items-center justify-center h-7 w-7 rounded bg-slate-800 hover:bg-rose-900/70 text-rose-400 hover:text-rose-300"
-                    title="Supprimer de la bibliothèque (fichier en quarantaine)" aria-label="Supprimer">
-              <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"
-                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M3.5 5.5h13"/><path d="M8 5.5V3.8c0-.4.3-.8.8-.8h2.4c.5 0 .8.4.8.8v1.7"/>
-                <path d="M5.5 5.5l.8 10c0 .6.5 1 1.1 1h5.2c.6 0 1.1-.4 1.1-1l.8-10"/>
-                <path d="M8.5 8.5v5"/><path d="M11.5 8.5v5"/>
-              </svg>
-            </button>
-          </form>
-          {% if t.rejected %}<span class="text-[10px] text-amber-400 ml-1">{{ t.rejected }} écartée(s)</span>{% endif %}
-          </div>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">Aucun résultat.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div id="library-results">
+  {% include "_library_results.html" %}
 </div>
-
-{% if pages > 1 %}
-<div class="flex justify-center gap-2 mt-4 text-sm">
-  {% for p in range(1, pages + 1) %}
-    {% if p <= 3 or p > pages - 3 or (p - page)|abs <= 1 %}
-      <a href="/library?q={{ q }}&status={{ status }}&page={{ p }}"
-         class="px-3 py-1 rounded {{ 'bg-slate-700 text-white' if p == page else 'bg-slate-900 text-slate-400 hover:bg-slate-800' }}">{{ p }}</a>
-    {% elif p == 4 or p == pages - 3 %}
-      <span class="px-2 text-slate-600">…</span>
-    {% endif %}
-  {% endfor %}
-</div>
-{% endif %}
 {% endblock %}

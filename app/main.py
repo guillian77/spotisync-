@@ -237,8 +237,12 @@ def library(request: Request, q: str = "", status: str = "", page: int = 1):
                 f"AS rejected FROM tracks t {clause} ORDER BY t.artists, t.title "
                 f"LIMIT {per} OFFSET {(page - 1) * per}", tuple(args))
     pages = max(1, (total + per - 1) // per)
-    return render(request, "library.html", tracks=rows, q=q, status=status,
-                  page=page, pages=pages, total=total)
+    ctx = dict(tracks=rows, q=q, status=status, page=page, pages=pages, total=total)
+    # Filtre en direct : HTMX n'a besoin que du tableau, pas de la page entière
+    # (le compteur et lui seul changent, donc il voyage avec le fragment).
+    if request.headers.get("HX-Request") == "true":
+        return render(request, "_library_results.html", **ctx)
+    return render(request, "library.html", **ctx)
 
 
 @app.post("/library/scan")
@@ -251,10 +255,11 @@ def library_scan():
 
 
 @app.post("/library/{tid}/delete")
-def library_delete(tid: int):
+def library_delete(tid: int, q: str = Form(""), status: str = Form("")):
+    back = f"/library?q={quote_plus(q)}&status={quote_plus(status)}"
     row = db.q1("SELECT * FROM tracks WHERE id=?", (tid,))
     if row is None:
-        return RedirectResponse("/library?q=&status=", status_code=303)
+        return RedirectResponse(back, status_code=303)
     old = row["file_path"]
     moved = False
     if old and Path(old).exists():
@@ -265,14 +270,15 @@ def library_delete(tid: int):
     msg = f"« {row['title']} » supprimée de la bibliothèque"
     if moved:
         msg += " · fichier déplacé en quarantaine"
-    return RedirectResponse("/library?q=&status=&redl=" + quote_plus(msg), status_code=303)
+    return RedirectResponse(back + "&redl=" + quote_plus(msg), status_code=303)
 
 
 @app.post("/library/{tid}/redownload")
-def library_redownload(tid: int):
+def library_redownload(tid: int, q: str = Form(""), status: str = Form("")):
+    back = f"/library?q={quote_plus(q)}&status={quote_plus(status)}"
     row = db.q1("SELECT * FROM tracks WHERE id=?", (tid,))
     if row is None:
-        return RedirectResponse("/library?q=&status=", status_code=303)
+        return RedirectResponse(back, status_code=303)
     old = row["file_path"]
     moved = False
     if old and Path(old).exists():
@@ -286,7 +292,7 @@ def library_redownload(tid: int):
         msg += " · ancien fichier en quarantaine"
     if rejected:
         msg += f" · {rejected} vidéo(s) déjà écartée(s) seront ignorées"
-    return RedirectResponse("/library?q=&status=&redl=" + quote_plus(msg), status_code=303)
+    return RedirectResponse(back + "&redl=" + quote_plus(msg), status_code=303)
 
 
 @app.get("/duplicates", response_class=HTMLResponse)

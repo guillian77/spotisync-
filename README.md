@@ -241,3 +241,16 @@ album, album_artist, numéro de piste, année, ISRC. YouTube ne fournit que l'au
 - Le matching YouTube peut choisir une version live/remix ; l'écran d'arbitrage manuel n'est pas
   encore implémenté (v2).
 - Un seul lot de téléchargement à la fois ; l'état est en base, donc reprise après redémarrage.
+
+### Filtre vivant (v0.11.0)
+
+La bibliothèque se filtre **sans appuyer sur « Filtrer »** :
+
+- **texte** : requête déclenchée 350 ms après la dernière frappe (`input changed delay:350ms`,
+  htmx), donc une frappe rapide ne produit qu'un seul appel réseau ;
+- **statut** : instantané, dès le changement de la liste ;
+- les requêtes en cours sont **annulées** quand une nouvelle part (`hx-sync="closest form:replace"`),
+  ce qui évite qu'une réponse lente écrase un résultat plus récent ;
+- le serveur ne renvoie que le fragment du tableau (`HX-Request`), pas la page entière ;
+- supprimer ou corriger une piste **conserve les filtres en cours** (champs cachés + redirection) ;
+- sans JavaScript, le bouton « Filtrer » et le formulaire GET fonctionnent toujours.
