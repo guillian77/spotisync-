@@ -232,7 +232,7 @@ def library(request: Request, q: str = "", status: str = "", page: int = 1):
         where.append("t.status = ?")
         args.append(status)
     clause = ("WHERE " + " AND ".join(where)) if where else ""
-    total = db.q1(f"SELECT COUNT(*) c FROM tracks {clause}", tuple(args))["c"]
+    total = db.q1(f"SELECT COUNT(*) c FROM tracks t {clause}", tuple(args))["c"]
     rows = db.q(f"SELECT t.*, (SELECT COUNT(*) FROM rejected_sources r WHERE r.track_id=t.id) "
                 f"AS rejected FROM tracks t {clause} ORDER BY t.artists, t.title "
                 f"LIMIT {per} OFFSET {(page - 1) * per}", tuple(args))
